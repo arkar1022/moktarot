@@ -16,11 +16,22 @@ export default function UserAvatar() {
         if (alive) setSrc(s)
       } catch {}
     })()
-    return () => { alive = false }
+    const onUpdated = (e: Event) => {
+      const detail = (e as CustomEvent).detail as string | undefined
+      if (detail && typeof detail === 'string') setSrc(detail)
+      else {
+        // Refetch as fallback
+        fetch('/api/me', { cache: 'no-store' }).then(r=>r.json()).then(d=>{
+          const s = d?.user?.avatar || '/avatars/vector8.png'
+          setSrc(s)
+        }).catch(()=>{})
+      }
+    }
+    window.addEventListener('avatar-updated', onUpdated as any)
+    return () => { alive = false; window.removeEventListener('avatar-updated', onUpdated as any) }
   }, [])
 
   return (
     <Image src={src} alt="avatar" width={28} height={28} className="rounded-full border border-mok-goldDeep/40" />
   )
 }
-

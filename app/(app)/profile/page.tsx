@@ -41,8 +41,10 @@ export default function ProfilePage() {
     setErr(null); setMsg(null)
     const res = await fetch('/api/profile/update', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ avatar }) })
     const data = await res.json().catch(()=>({}))
-    if (res.ok) setMsg('အာဗတာကို ပြောင်းပြီးပါပြီ')
-    else setErr(data.error || 'မအောင်မြင်ပါ')
+    if (res.ok) {
+      setMsg('အာဗတာကို ပြောင်းပြီးပါပြီ')
+      try { window.dispatchEvent(new CustomEvent('avatar-updated', { detail: avatar })) } catch {}
+    } else setErr(data.error || 'မအောင်မြင်ပါ')
   }
 
   async function changePassword() {
@@ -79,10 +81,12 @@ export default function ProfilePage() {
           )}
         </div>
         {editName && (
-          <div className="mt-3 flex gap-2">
-            <input value={name} onChange={(e)=>setName(e.target.value)} className="flex-1 rounded-md bg-black/50 border border-mok-goldDeep/40 px-3 py-2 outline-none focus:border-mok-gold"/>
-            <button onClick={saveName} className="px-3 py-2 rounded-md bg-gold-linear text-black font-medium">သိမ်းမည်</button>
-            <button onClick={()=>setEditName(false)} className="px-3 py-2 rounded-md border border-mok-goldDeep/40">မလုပ်တော့</button>
+          <div className="mt-3">
+            <input value={name} onChange={(e)=>setName(e.target.value)} className="w-full rounded-md bg-black/50 border border-mok-goldDeep/40 px-3 py-2 outline-none focus:border-mok-gold"/>
+            <div className="mt-2 flex gap-2">
+              <button onClick={saveName} className="px-3 py-2 rounded-md bg-gold-linear text-black font-medium">သိမ်းမည်</button>
+              <button onClick={()=>setEditName(false)} className="px-3 py-2 rounded-md border border-mok-goldDeep/40">မလုပ်တော့</button>
+            </div>
           </div>
         )}
       </section>

@@ -5,6 +5,7 @@ import { SpeedInsights } from '@vercel/speed-insights/next'
 export const metadata = {
   title: 'MOK Tarot Reading',
   description: 'Tarot reading with Burmese guidance',
+  icons: { icon: '/logo.webp' },
 }
 
 export default function RootLayout({ children }: { children: ReactNode }) {
