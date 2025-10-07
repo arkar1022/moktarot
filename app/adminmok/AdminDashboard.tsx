@@ -20,6 +20,7 @@ type Reading = {
   language: string
   category?: 'LOVE'|'MARRIAGE'|'WORK'|'LIFESTYLE'|'SPIRITUAL'|'EDUCATION'|'HEALTH'|'MONEY' | null
   createdAt: string
+  cards?: any
   user?: { id: string; email: string; name: string }
 }
 
@@ -30,6 +31,7 @@ export default function AdminDashboard({ users, readings }: { users: User[]; rea
   const [openUserId, setOpenUserId] = useState<string | null>(null)
   const [usersState, setUsersState] = useState<User[]>(users)
   const [readingsState, setReadingsState] = useState<Reading[]>(readings)
+  const [openReading, setOpenReading] = useState<Reading | null>(null)
 
   // Build lastActive map from readings
   const lastActive = useMemo(() => {
@@ -205,13 +207,13 @@ export default function AdminDashboard({ users, readings }: { users: User[]; rea
                       <div className="gold-gradient font-medium mb-2">Readings ({rs.length})</div>
                       <div className="space-y-2">
                         {rs.map(r => (
-                          <div key={r.id} className="p-3 rounded-lg border border-mok-goldDeep/30 bg-black/30">
+                          <button key={r.id} onClick={()=>setOpenReading(r)} className="text-left w-full p-3 rounded-lg border border-mok-goldDeep/30 bg-black/30 hover:border-mok-gold">
                             <div className="flex items-center justify-between text-xs text-neutral-400">
                               <span>{new Date(r.createdAt).toLocaleString()}</span>
                               <span className="px-2 py-0.5 rounded border border-mok-goldDeep/40">{r.category || '—'}</span>
                             </div>
                             <div className="mt-1 text-sm text-neutral-200">{r.question}</div>
-                          </div>
+                          </button>
                         ))}
                       </div>
                     </div>
@@ -256,7 +258,7 @@ export default function AdminDashboard({ users, readings }: { users: User[]; rea
                 </thead>
                 <tbody>
                   {filteredReadings.map(r => (
-                    <tr key={r.id} className="border-t border-mok-goldDeep/20 align-top hover:bg-black/30">
+                    <tr key={r.id} onClick={()=>setOpenReading(r)} className="border-t border-mok-goldDeep/20 align-top hover:bg-black/30 cursor-pointer">
                       <td className="p-2 whitespace-nowrap">{new Date(r.createdAt).toLocaleString()}</td>
                       <td className="p-2 whitespace-nowrap">{r.user?.name || '—'}</td>
                       <td className="p-2 whitespace-nowrap">{r.user?.email || '—'}</td>
@@ -268,6 +270,42 @@ export default function AdminDashboard({ users, readings }: { users: User[]; rea
               </table>
             </div>
           </section>
+        )}
+
+        {/* Reading detail modal */}
+        {openReading && (
+          <div className="fixed inset-0 z-50 flex items-center justify-center p-4">
+            <div className="absolute inset-0 bg-black/70" onClick={()=>setOpenReading(null)} />
+            <div className="relative z-10 w-full max-w-3xl mx-4 rounded-2xl border border-mok-goldDeep/40 bg-mok-black p-4 shadow-xl max-h-[90vh] overflow-y-auto thin-scroll">
+              <div className="flex items-center justify-between mb-3">
+                <div>
+                  <div className="gold-gradient font-semibold">Reading Detail</div>
+                  <div className="text-xs text-neutral-400">{new Date(openReading.createdAt).toLocaleString()} {openReading.category ? `· ${openReading.category}` : ''}</div>
+                </div>
+                <button onClick={()=>setOpenReading(null)} className="px-3 py-1 rounded-md border border-mok-goldDeep/40 hover:border-mok-gold">Close</button>
+              </div>
+              <div className="space-y-3">
+                <div className="p-3 rounded-lg border border-mok-goldDeep/30 bg-black/30">
+                  <div className="text-neutral-400 text-sm mb-1">User</div>
+                  <div className="text-sm">{openReading.user?.name || '—'} <span className="text-neutral-400">({openReading.user?.email || '—'})</span></div>
+                </div>
+                <div className="p-3 rounded-lg border border-mok-goldDeep/30 bg-black/30">
+                  <div className="text-neutral-400 text-sm mb-1">Question</div>
+                  <div>{openReading.question}</div>
+                </div>
+                {openReading.cards && (
+                  <div className="p-3 rounded-lg border border-mok-goldDeep/30 bg-black/30">
+                    <div className="text-neutral-400 text-sm mb-1">Cards</div>
+                    <div className="text-sm">{Array.isArray(openReading.cards) ? openReading.cards.map((c:any)=> typeof c === 'string' ? c : (c?.name||'')).filter(Boolean).join(', ') : '—'}</div>
+                  </div>
+                )}
+                <div className="p-3 rounded-lg border border-mok-goldDeep/30 bg-black/30">
+                  <div className="text-neutral-400 text-sm mb-1">Answer</div>
+                  <div className="whitespace-pre-wrap leading-7">{openReading.answer}</div>
+                </div>
+              </div>
+            </div>
+          </div>
         )}
       </main>
     </div>
