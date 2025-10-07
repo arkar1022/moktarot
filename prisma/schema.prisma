@@ -1,0 +1,51 @@
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+enum Role {
+  USER
+  ADMIN
+}
+
+// Admin-only categorization for readings
+enum ReadingCategory {
+  LOVE
+  MARRIAGE
+  WORK
+  LIFESTYLE
+  SPIRITUAL
+  EDUCATION
+  HEALTH
+  MONEY
+}
+
+model User {
+  id           String   @id @default(cuid())
+  email        String   @unique
+  passwordHash String
+  name         String
+  avatar       String?
+  role         Role     @default(USER)
+  dailyLimit   Int      @default(3)
+  extraQuota   Int      @default(0)
+  createdAt    DateTime @default(now())
+  readings     Reading[]
+}
+
+model Reading {
+  id        String   @id @default(cuid())
+  user      User     @relation(fields: [userId], references: [id])
+  userId    String
+  question  String
+  cards     Json
+  answer    String
+  language  String   @default("my")
+  category  ReadingCategory?
+  createdAt DateTime @default(now())
+  @@index([userId, createdAt])
+}

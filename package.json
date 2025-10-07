@@ -1,0 +1,32 @@
+{
+  "name": "moktarot",
+  "version": "0.1.0",
+  "private": true,
+  "scripts": {
+    "dev": "next dev",
+    "build": "next build",
+    "start": "next start",
+    "postinstall": "prisma generate",
+    "prisma:dev": "prisma migrate dev --name init",
+    "make:admin": "node scripts/promote-admin.mjs",
+    "cards:png": "node scripts/normalize-card-images.mjs"
+  },
+  "dependencies": {
+    "@prisma/client": "^5.18.0",
+    "bcrypt": "^5.1.1",
+    "jsonwebtoken": "^9.0.2",
+    "next": "^14.2.8",
+    "react": "^18.3.1",
+    "react-dom": "^18.3.1"
+  },
+  "devDependencies": {
+    "@types/node": "24.7.0",
+    "@types/react": "19.2.0",
+    "autoprefixer": "^10.4.20",
+    "postcss": "^8.4.47",
+    "prisma": "^5.18.0",
+    "tailwindcss": "^3.4.13",
+    "typescript": "^5.6.2",
+    "sharp": "^0.33.4"
+  }
+}

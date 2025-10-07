@@ -1,0 +1,3 @@
+-- AlterTable
+ALTER TABLE "User" ADD COLUMN     "dailyLimit" INTEGER NOT NULL DEFAULT 3,
+ADD COLUMN     "extraQuota" INTEGER NOT NULL DEFAULT 0;

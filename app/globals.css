@@ -1,0 +1,126 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+:root {
+  --bg: #0B0B0B;
+}
+
+html, body, #__next {
+  height: 100%;
+}
+
+body {
+  background: var(--bg);
+  color: #F5F5F5;
+}
+
+.gold-text { @apply text-mok-gold; }
+.gold-gradient { @apply bg-gold-linear bg-clip-text text-transparent; }
+
+/* Card shuffle animation */
+@keyframes card-shuffle {
+  0% { transform: translate(0,0) rotate(0deg); }
+  50% { transform: translate(var(--dx, 0px), var(--dy, 0px)) rotate(var(--rot, 0deg)); }
+  100% { transform: translate(0,0) rotate(0deg); }
+}
+.animate-card-shuffle {
+  animation: card-shuffle 700ms ease-in-out both;
+  animation-delay: var(--delay, 0ms);
+}
+
+/* Shuffle button bounce */
+@keyframes btn-bounce {
+  0% { transform: translateY(0) scale(1); }
+  30% { transform: translateY(-2px) scale(1.02); }
+  60% { transform: translateY(0) scale(0.98); }
+  100% { transform: translateY(0) scale(1); }
+}
+.btn-shuffle.bouncing {
+  animation: btn-bounce 600ms ease;
+}
+
+/* Flip reveal for face-up cards */
+.flip-container {
+  perspective: 1000px;
+  -webkit-perspective: 1000px;
+}
+.flip-card {
+  transform-style: preserve-3d;
+  -webkit-transform-style: preserve-3d;
+  transition: transform 500ms ease;
+  /* Helps Chrome/GPU avoid black textures on large images */
+  will-change: transform;
+}
+.flip-card.revealed {
+  transform: rotateY(180deg);
+}
+.flip-face,
+.flip-back {
+  backface-visibility: hidden;
+  -webkit-backface-visibility: hidden;
+  position: absolute;
+  inset: 0;
+}
+.flip-face {
+  transform: rotateY(180deg);
+  /* Ensure face is stacked above back when revealed */
+  z-index: 1;
+  opacity: 0;
+  transition: opacity 300ms ease;
+}
+.flip-back { z-index: 0; }
+
+/* Stabilize image layers inside flip to prevent black render */
+.flip-face img,
+.flip-back img {
+  display: block;
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+  transform: translateZ(0);
+}
+
+/* Extra safety: when revealed, ensure back is hidden in case 3D fails */
+.flip-card.revealed .flip-back { display: none; }
+.flip-card.revealed .flip-face { opacity: 1; }
+
+/* Thin scrollbar (applied only where class is used) */
+.thin-scroll {
+  scrollbar-width: thin; /* Firefox */
+  scrollbar-color: rgba(197,162,74,0.35) transparent; /* thumb track */
+}
+.thin-scroll::-webkit-scrollbar {
+  width: 8px;
+  height: 8px;
+}
+.thin-scroll::-webkit-scrollbar-thumb {
+  background-color: rgba(197,162,74,0.35);
+  border-radius: 9999px;
+  border: 2px solid transparent; /* keeps thumb slim */
+  background-clip: content-box;
+}
+.thin-scroll::-webkit-scrollbar-thumb:hover {
+  background-color: rgba(197,162,74,0.55);
+}
+.thin-scroll::-webkit-scrollbar-track {
+  background: transparent;
+}
+
+/* Loading UI */
+@keyframes spin {
+  to { transform: rotate(360deg); }
+}
+.spinner {
+  animation: spin 1s linear infinite;
+}
+
+@keyframes shimmerMove {
+  0% { background-position: -200% 0; }
+  100% { background-position: 200% 0; }
+}
+.shimmer {
+  background: linear-gradient(90deg, rgba(255,255,255,0.06) 25%, rgba(255,255,255,0.14) 37%, rgba(255,255,255,0.06) 63%);
+  background-size: 200% 100%;
+  animation: shimmerMove 1.6s ease-in-out infinite;
+}
