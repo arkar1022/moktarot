@@ -1,5 +1,6 @@
 import './globals.css'
 import type { ReactNode } from 'react'
+import { SpeedInsights } from '@vercel/speed-insights/next'
 
 export const metadata = {
   title: 'MOK Tarot Reading',
@@ -13,8 +14,8 @@ export default function RootLayout({ children }: { children: ReactNode }) {
         <div className="min-h-screen bg-mok-black">
           {children}
         </div>
+        <SpeedInsights />
       </body>
     </html>
   )
 }
-

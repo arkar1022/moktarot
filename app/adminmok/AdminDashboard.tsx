@@ -28,16 +28,18 @@ const CATEGORIES = ['LOVE','MARRIAGE','WORK','LIFESTYLE','SPIRITUAL','EDUCATION'
 export default function AdminDashboard({ users, readings }: { users: User[]; readings: Reading[] }) {
   const [tab, setTab] = useState<'users'|'readings'>('users')
   const [openUserId, setOpenUserId] = useState<string | null>(null)
+  const [usersState, setUsersState] = useState<User[]>(users)
+  const [readingsState, setReadingsState] = useState<Reading[]>(readings)
 
   // Build lastActive map from readings
   const lastActive = useMemo(() => {
     const map: Record<string, string> = {}
-    for (const r of readings) {
+    for (const r of readingsState) {
       const cur = map[r.userId]
       if (!cur || new Date(r.createdAt) > new Date(cur)) map[r.userId] = r.createdAt
     }
     return map
-  }, [readings])
+  }, [readingsState])
 
   /* USERS state */
   const [uQuery, setUQuery] = useState('')
@@ -47,7 +49,7 @@ export default function AdminDashboard({ users, readings }: { users: User[]; rea
 
   const filteredUsers = useMemo(() => {
     const q = uQuery.trim().toLowerCase()
-    let arr = users.filter(u => {
+    let arr = usersState.filter(u => {
       const okQ = !q || u.email.toLowerCase().includes(q) || u.name.toLowerCase().includes(q)
       const t = new Date(u.createdAt).getTime()
       const fromOk = !uCreatedFrom || t >= new Date(uCreatedFrom).getTime()
@@ -65,7 +67,7 @@ export default function AdminDashboard({ users, readings }: { users: User[]; rea
       }
     }
     return arr.sort(cmp)
-  }, [users, uQuery, uSort, uCreatedFrom, uCreatedTo, lastActive])
+  }, [usersState, uQuery, uSort, uCreatedFrom, uCreatedTo, lastActive])
 
   /* READINGS state */
   const [rQuery, setRQuery] = useState('')
@@ -74,7 +76,7 @@ export default function AdminDashboard({ users, readings }: { users: User[]; rea
 
   const filteredReadings = useMemo(() => {
     const q = rQuery.trim().toLowerCase()
-    let arr = readings.filter(r => {
+    let arr = readingsState.filter(r => {
       const text = `${r.question} ${r.user?.name || ''} ${r.user?.email || ''}`.toLowerCase()
       const okQ = !q || text.includes(q)
       const okC = rCats.length === 0 || (r.category && rCats.includes(r.category))
@@ -87,7 +89,20 @@ export default function AdminDashboard({ users, readings }: { users: User[]; rea
       return (a.answer?.length || 0) - (b.answer?.length || 0)
     })
     return arr
-  }, [readings, rQuery, rSort, rCats])
+  }, [readingsState, rQuery, rSort, rCats])
+
+  async function deleteUser(id: string, name: string) {
+    if (!confirm(`Delete user "${name}" and all readings? This cannot be undone.`)) return
+    try {
+      const res = await fetch(`/api/admin/users/${encodeURIComponent(id)}`, { method: 'DELETE' })
+      if (!res.ok) throw new Error('Failed')
+      setUsersState(prev => prev.filter(u => u.id !== id))
+      setReadingsState(prev => prev.filter(r => r.userId !== id))
+      if (openUserId === id) setOpenUserId(null)
+    } catch (e) {
+      alert('Failed to delete user.')
+    }
+  }
 
   return (
     <div className="grid grid-cols-[220px_1fr] gap-4">
@@ -129,16 +144,23 @@ export default function AdminDashboard({ users, readings }: { users: User[]; rea
                     <th className="p-2 text-left">Role</th>
                     <th className="p-2 text-left">Created</th>
                     <th className="p-2 text-left">Last active</th>
+                    <th className="p-2 text-left">Actions</th>
                   </tr>
                 </thead>
                 <tbody>
                   {filteredUsers.map(u => (
-                    <tr key={u.id} className="border-t border-mok-goldDeep/20 hover:bg-black/30 cursor-pointer" onClick={()=>setOpenUserId(u.id)}>
+                    <tr key={u.id} className="border-t border-mok-goldDeep/20 hover:bg-black/30">
                       <td className="p-2">{u.name}</td>
                       <td className="p-2">{u.email}</td>
                       <td className="p-2">{u.role}</td>
                       <td className="p-2 whitespace-nowrap">{new Date(u.createdAt).toLocaleString()}</td>
                       <td className="p-2 whitespace-nowrap text-neutral-300">{lastActive[u.id] ? new Date(lastActive[u.id]).toLocaleString() : '—'}</td>
+                      <td className="p-2">
+                        <div className="flex items-center gap-2">
+                          <button onClick={()=>setOpenUserId(u.id)} className="px-2 py-1 rounded border border-mok-goldDeep/40 hover:border-mok-gold">View</button>
+                          <button onClick={()=>deleteUser(u.id, u.name)} className="px-2 py-1 rounded border border-red-500/40 text-red-300 hover:bg-red-500/10">Delete</button>
+                        </div>
+                      </td>
                     </tr>
                   ))}
                 </tbody>
@@ -146,10 +168,9 @@ export default function AdminDashboard({ users, readings }: { users: User[]; rea
             </div>
             {/* User detail modal */}
             {openUserId && (()=>{
-              const u = users.find(x=>x.id===openUserId)
+              const u = usersState.find(x=>x.id===openUserId)
               if (!u) return null
-              const rs = readings.filter(r=>r.userId===u.id)
-              const [dailyLimit, setDailyLimit] = [undefined, undefined] as any
+              const rs = readingsState.filter(r=>r.userId===u.id)
               return (
                 <div className="fixed inset-0 z-50 flex items-center justify-center p-4">
                   <div className="absolute inset-0 bg-black/70" onClick={()=>setOpenUserId(null)} />

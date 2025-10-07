@@ -12,6 +12,11 @@ enum Role {
   ADMIN
 }
 
+enum Gender {
+  MALE
+  FEMALE
+  OTHER
+}
 // Admin-only categorization for readings
 enum ReadingCategory {
   LOVE
@@ -33,6 +38,8 @@ model User {
   role         Role     @default(USER)
   dailyLimit   Int      @default(3)
   extraQuota   Int      @default(0)
+  gender       Gender?
+  age          Int?
   createdAt    DateTime @default(now())
   readings     Reading[]
 }

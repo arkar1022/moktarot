@@ -19,3 +19,15 @@ export async function PATCH(_req: Request, { params }: { params: { id: string } 
   }
 }
 
+export async function DELETE(_req: Request, { params }: { params: { id: string } }) {
+  const auth = getAuthCookie()
+  if (!auth || auth.role !== 'ADMIN') return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
+  try {
+    // Remove readings first, then user
+    await prisma.reading.deleteMany({ where: { userId: params.id } })
+    await prisma.user.delete({ where: { id: params.id } })
+    return NextResponse.json({ ok: true })
+  } catch (e) {
+    return NextResponse.json({ error: 'Delete failed' }, { status: 400 })
+  }
+}
