@@ -12,6 +12,7 @@ export default function DashboardPage() {
   const [loading, setLoading] = useState(false)
   const [result, setResult] = useState<string | null>(null)
   const [revealCount, setRevealCount] = useState(0) // 0..3 progressive reveal in modal
+  const [imagesReady, setImagesReady] = useState(false)
   const [showModal, setShowModal] = useState(false)
   const [isShuffling, setIsShuffling] = useState(false)
   const [noise, setNoise] = useState<{dx:number,dy:number,rot:number}[]>([])
@@ -54,17 +55,34 @@ export default function DashboardPage() {
     setRevealCount(0)
   }, [forceTrio])
 
-  // Whenever modal opens, kick off reveal animation sequence
+  // When modal opens, preload chosen images and only then start flipping
   useEffect(() => {
-    if (showModal) startRevealSequence()
-    // Clean up if modal closes mid-sequence
-    return () => {
-      if (!showModal) {
-        revealTimers.current.forEach(id => clearTimeout(id))
-        revealTimers.current = []
-      }
+    let cancelled = false
+    async function preloadAndReveal() {
+      if (!showModal) return
+      setImagesReady(false)
+      setRevealCount(0)
+      const srcs = chosenCards.map(c => cardImagePath(c))
+      const loaders = srcs.map((src) => new Promise<void>((resolve) => {
+        const img = new window.Image()
+        img.onload = () => resolve()
+        img.onerror = () => resolve() // tolerate error -> will swap to placeholder via onError
+        img.src = src
+      }))
+      // Safety timeout so we don't hang forever on slow networks
+      const timeout = new Promise<void>(res => setTimeout(res, 4000))
+      await Promise.race([Promise.all(loaders).then(()=>{}), timeout])
+      if (cancelled) return
+      setImagesReady(true)
+      startRevealSequence()
     }
-  }, [showModal])
+    preloadAndReveal()
+    return () => {
+      cancelled = true
+      revealTimers.current.forEach(id => clearTimeout(id))
+      revealTimers.current = []
+    }
+  }, [showModal, chosenCards.map(c=>c.id).join(',')])
 
   // No candidate variants; all assets use strict naming in /public/cards as .png
 
@@ -116,6 +134,7 @@ export default function DashboardPage() {
     revealTimers.current.forEach(id => clearTimeout(id))
     revealTimers.current = []
     setShowModal(false)
+    setImagesReady(false)
     setLimitModal(false)
     setRevealCount(0)
     setResult(null)
@@ -130,8 +149,7 @@ export default function DashboardPage() {
   async function revealAndInterpret() {
     try {
       setShowModal(true)
-      setRevealCount(0)
-      startRevealSequence()
+      setRevealCount(0) // actual flip will start after images preload
       setLoading(true)
       const reqId = ++requestIdRef.current
       const cards = forceTrio
@@ -218,7 +236,7 @@ export default function DashboardPage() {
                 return (
                   <div key={`${card.id}-${idx}`} className="text-center">
                     <div className="flip-container">
-                      <div className={`flip-card ${idx < revealCount ? 'revealed' : ''} aspect-[3/5] rounded-lg overflow-hidden border border-mok-gold/40 relative`}>
+                      <div className={`flip-card ${(imagesReady && idx < revealCount) ? 'revealed' : ''} aspect-[3/5] rounded-lg overflow-hidden border border-mok-gold/40 relative`}>
                         <div className="flip-back absolute inset-0">
                           <img src={CARD_BACK_SRC} alt="back" className="w-full h-full object-cover" />
                         </div>
@@ -232,6 +250,12 @@ export default function DashboardPage() {
                 )
               })}
             </div>
+            {!imagesReady && (
+              <div className="mt-3 flex items-center gap-3 text-neutral-300 text-sm">
+                <div className="spinner size-5 border-2 border-mok-gold/60 border-t-transparent rounded-full" aria-label="loading" />
+                <span>ကတ်ပုံများကို ဖွင့်ယူနေပါသည်…</span>
+              </div>
+            )}
             <div className="mt-4 p-3 rounded-lg border border-mok-goldDeep/40 bg-black/40 min-h-[96px]">
               <div className="gold-gradient font-medium mb-1">ဖတ်ရှုချက်</div>
               {!result && (
