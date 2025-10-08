@@ -29,9 +29,29 @@ enum ReadingCategory {
   MONEY
 }
 
+// Zodiac signs for admin-authored horoscope-like readings
+enum ZodiacSign {
+  ARIES
+  TAURUS
+  GEMINI
+  CANCER
+  LEO
+  VIRGO
+  LIBRA
+  SCORPIO
+  SAGITTARIUS
+  CAPRICORN
+  AQUARIUS
+  PISCES
+}
+
 model User {
   id           String   @id @default(cuid())
-  email        String   @unique
+  email        String?  @unique
+  // Phone login support: store country/student code separately from local number
+  // phoneCode should be digits-only (e.g., 95) and phoneNumber without leading 0
+  phoneCode    String?
+  phoneNumber  String?
   passwordHash String
   name         String
   avatar       String?
@@ -42,6 +62,10 @@ model User {
   age          Int?
   createdAt    DateTime @default(now())
   readings     Reading[]
+  zodiacViews  ZodiacView[]
+  zodiacReactions ZodiacReaction[]
+
+  @@unique([phoneCode, phoneNumber])
 }
 
 model Reading {
@@ -55,4 +79,54 @@ model Reading {
   category  ReadingCategory?
   createdAt DateTime @default(now())
   @@index([userId, createdAt])
+}
+
+// Admin-authored zodiac readings by timeframe
+model ZodiacReading {
+  id         String     @id @default(cuid())
+  sign       ZodiacSign
+  startDate  DateTime
+  endDate    DateTime
+  cards      Json
+  fakeReactions Int     @default(0)
+  // Burmese professional tone sections
+  general      String
+  relationship String // love, family, society
+  workMoney    String
+  health       String
+  education    String
+  warnings     String
+  createdAt  DateTime  @default(now())
+  updatedAt  DateTime  @updatedAt
+
+  @@index([sign, createdAt])
+  views      ZodiacView[]
+  reactions  ZodiacReaction[]
+}
+
+// Track which users viewed which zodiac reading, and how often
+model ZodiacView {
+  id         String         @id @default(cuid())
+  reading    ZodiacReading  @relation(fields: [readingId], references: [id])
+  readingId  String
+  user       User           @relation(fields: [userId], references: [id])
+  userId     String
+  count      Int            @default(0)
+  lastViewed DateTime       @default(now())
+
+  @@unique([readingId, userId])
+  @@index([readingId])
+}
+
+// Per-user reaction (heart) on a zodiac reading
+model ZodiacReaction {
+  id        String        @id @default(cuid())
+  reading   ZodiacReading @relation(fields: [readingId], references: [id])
+  readingId String
+  user      User          @relation(fields: [userId], references: [id])
+  userId    String
+  createdAt DateTime      @default(now())
+
+  @@unique([readingId, userId])
+  @@index([readingId])
 }

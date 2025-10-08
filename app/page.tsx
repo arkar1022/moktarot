@@ -10,6 +10,9 @@ export default function HomePage() {
   const router = useRouter()
   const [stage, setStage] = useState<Stage>('email')
   const [email, setEmail] = useState('')
+  const [method, setMethod] = useState<'email'|'phone'>('email')
+  const [phoneCode, setPhoneCode] = useState('95')
+  const [phoneNumber, setPhoneNumber] = useState('')
   const [name, setName] = useState('')
   const [gender, setGender] = useState<'male'|'female'|'other'|''>('')
   const [age, setAge] = useState('')
@@ -19,28 +22,54 @@ export default function HomePage() {
   const [loading, setLoading] = useState(false)
   const [agree, setAgree] = useState(false)
   const [showPolicy, setShowPolicy] = useState(false)
+  const COUNTRY_CODES = [
+    { code: '95', name: 'မြန်မာ' },
+    { code: '66', name: 'ထိုင်း' },
+    { code: '60', name: 'မလေးရှား' },
+    { code: '65', name: 'စင်္ကာပူ' },
+    { code: '62', name: 'အင်ဒိုနီးရှား' },
+    { code: '84', name: 'ဗီယက်နမ်' },
+    { code: '63', name: 'ဖိလစ်ပိုင်' },
+    { code: '91', name: 'အိန္ဒိယ' },
+    { code: '880', name: 'ဗಾಂಗလားဒေ့ရှ်' },
+    { code: '86', name: 'တရုတ်' },
+    { code: '81', name: 'ဂျပန်' },
+    { code: '82', name: 'ကိုရီးယား (တောင်)' },
+    { code: '1', name: 'အမေရိကန်' },
+    { code: '44', name: 'ယူကေ' },
+    { code: '61', name: 'ဩစတြေးလျ' },
+  ]
 
   async function onCheckEmail(e?: React.FormEvent) {
     e?.preventDefault()
     setError(null); setInfo(null)
-    if (!email) return setError('အီးမေးလ်ထည့်ပါ')
     setLoading(true)
-    const res = await fetch('/api/auth/check-email', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ email }) })
-    const data = await res.json()
-    setLoading(false)
-    if (data.gmailOnly === true) {
-      setError('Gmail (@gmail.com) သာအသုံးပြုခွင့်ရှိသည်')
-      return
+    try {
+      if (method === 'email') {
+        if (!email) { setError('အီးမေးလ်ထည့်ပါ'); return }
+        const res = await fetch('/api/auth/check-email', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ email }) })
+        const data = await res.json()
+        if (data.gmailOnly === true) { setError('Gmail (@gmail.com) သာအသုံးပြုခွင့်ရှိသည်'); return }
+        if (!data.ok) { setError('မမှန်ကန်သော အီးမေးလ်'); return }
+        setStage(data.exists ? 'login' : 'register')
+      } else {
+        if (!phoneCode || !phoneNumber) { setError('ဖုန်းနံပါတ် ဖြည့်ပါ'); return }
+        const res = await fetch('/api/auth/check-phone', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ phoneCode, phoneNumber }) })
+        const data = await res.json()
+        if (!data.ok) { setError('မမှန်ကန်သော ဖုန်း'); return }
+        setStage(data.exists ? 'login' : 'register')
+      }
+    } finally {
+      setLoading(false)
     }
-    if (!data.ok) { setError('မမှန်ကန်သော အီးမေးလ်') ; return }
-    setStage(data.exists ? 'login' : 'register')
   }
 
   async function onLogin(e: React.FormEvent) {
     e.preventDefault(); setError(null)
     if (password.length < 6) return setError('စကားဝှက် အနည်းဆုံး ၆ လုံး')
     setLoading(true)
-    const res = await fetch('/api/auth/login', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ email, password }) })
+    const body = method === 'email' ? { email, password } : { phoneCode, phoneNumber, password }
+    const res = await fetch('/api/auth/login', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(body) })
     const data = await res.json(); setLoading(false)
     if (res.ok) { window.location.href = '/app/dashboard'; return }
     else setError(data.error || 'ဝင်ရောက်မှု မအောင်မြင်ပါ')
@@ -55,7 +84,10 @@ export default function HomePage() {
     if (password.length < 6) return setError('စကားဝှက် အနည်းဆုံး ၆ လုံး')
     if (!agree) return setError('စည်းကမ်းချက်များကို သဘောတူရန် လိုအပ်ပါသည်')
     setLoading(true)
-    const res = await fetch('/api/auth/register', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ email, name, password, gender, age: ageNum }) })
+    const body = method === 'email'
+      ? { email, name, password, gender, age: ageNum }
+      : { phoneCode, phoneNumber, name, password, gender, age: ageNum }
+    const res = await fetch('/api/auth/register', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(body) })
     const data = await res.json(); setLoading(false)
     if (res.ok) { window.location.href = '/app/dashboard'; return }
     else setError(data.error || 'စာရင်းသွင်းမှု မအောင်မြင်ပါ')
@@ -73,10 +105,31 @@ export default function HomePage() {
 
         {stage === 'email' && (
           <form onSubmit={onCheckEmail} className="space-y-4">
-            <div>
-              <label className="block mb-1 text-sm text-mok-goldLight">Gmail</label>
-              <input value={email} onChange={(e)=>setEmail(e.target.value)} type="email" placeholder="you@gmail.com" className="w-full rounded-md bg-black/50 border border-mok-goldDeep/40 px-3 py-2 outline-none focus:border-mok-gold"/>
+            <div className="flex gap-2 text-sm">
+              <button type="button" onClick={()=>setMethod('email')} className={`flex-1 px-3 py-2 rounded-md border ${method==='email'?'border-mok-gold bg-black/40':'border-mok-goldDeep/30'}`}>အီးမေးလ်</button>
+              <button type="button" onClick={()=>setMethod('phone')} className={`flex-1 px-3 py-2 rounded-md border ${method==='phone'?'border-mok-gold bg-black/40':'border-mok-goldDeep/30'}`}>ဖုန်း</button>
             </div>
+            {method === 'email' ? (
+              <div>
+                <label className="block mb-1 text-sm text-mok-goldLight">အီးမေးလ် (Gmail)</label>
+                <input value={email} onChange={(e)=>setEmail(e.target.value)} type="email" placeholder="you@gmail.com" className="w-full rounded-md bg-black/50 border border-mok-goldDeep/40 px-3 py-2 outline-none focus:border-mok-gold"/>
+              </div>
+            ) : (
+              <div className="grid grid-cols-[1fr_2fr] gap-2">
+                <label className="text-sm">
+                  <div className="block mb-1 text-mok-goldLight">နိုင်ငံ</div>
+                  <select value={phoneCode} onChange={(e)=>setPhoneCode(e.target.value)} className="w-full h-10 rounded-md bg-black/50 border border-mok-goldDeep/40 px-3 py-2 outline-none focus:border-mok-gold">
+                    {COUNTRY_CODES.map(c => (
+                      <option key={c.code} value={c.code}>{c.name} (+{c.code})</option>
+                    ))}
+                  </select>
+                </label>
+                <label className="text-sm">
+                  <div className="block mb-1 text-mok-goldLight">ဖုန်းနံပါတ်</div>
+                  <input value={phoneNumber} onChange={(e)=>setPhoneNumber(e.target.value)} placeholder="09…" className="w-full rounded-md bg-black/50 border border-mok-goldDeep/40 px-3 py-2 outline-none focus:border-mok-gold"/>
+                </label>
+              </div>
+            )}
             {error && <p className="text-red-400 text-sm">{error}</p>}
             {info && <p className="text-green-400 text-sm">{info}</p>}
             <button disabled={loading} className="w-full py-2 rounded-md bg-gold-linear text-black font-medium disabled:opacity-60">{loading ? 'စောင့်ပါ…' : 'ဆက်လုပ်မည်'}</button>
@@ -85,7 +138,7 @@ export default function HomePage() {
 
         {stage === 'login' && (
           <form onSubmit={onLogin} className="space-y-4">
-            <p className="text-sm text-mok-goldLight">{email}</p>
+            <p className="text-sm text-mok-goldLight">{method==='email' ? email : `+${phoneCode} ${phoneNumber}`}</p>
             <div>
               <label className="block mb-1 text-sm text-mok-goldLight">စကားဝှက်</label>
               <input value={password} onChange={(e)=>setPassword(e.target.value)} type="password" className="w-full rounded-md bg-black/50 border border-mok-goldDeep/40 px-3 py-2 outline-none focus:border-mok-gold" />
@@ -100,7 +153,7 @@ export default function HomePage() {
 
         {stage === 'register' && (
           <form onSubmit={onRegister} className="space-y-4">
-            <p className="text-sm text-mok-goldLight">{email}</p>
+            <p className="text-sm text-mok-goldLight">{method==='email' ? email : `+${phoneCode} ${phoneNumber}`}</p>
             <div>
               <label className="block mb-1 text-sm text-mok-goldLight">အမည်</label>
               <input value={name} onChange={(e)=>setName(e.target.value)} className="w-full rounded-md bg-black/50 border border-mok-goldDeep/40 px-3 py-2 outline-none focus:border-mok-gold" />
@@ -136,7 +189,7 @@ export default function HomePage() {
           </form>
         )}
 
-        <p className="mt-6 text-center text-xs text-neutral-400">Gmail များကိုသာ ခွင့်ပြုထားသည်</p>
+        <p className="mt-6 text-center text-xs text-neutral-400">Email (Gmail) သို့မဟုတ် ဖုန်းနံပါတ်ဖြင့် မှတ်ပုံတင်/ဝင်ရောက်နိုင်သည်</p>
       </div>
       {showPolicy && (
         <div className="fixed inset-0 z-50 flex items-center justify-center p-4">

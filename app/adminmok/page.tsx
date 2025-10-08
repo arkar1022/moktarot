@@ -21,7 +21,11 @@ export default async function AdminPage() {
       <h1 className="gold-gradient text-2xl font-semibold mb-4">Admin Dashboard</h1>
       <AdminDashboard
         users={users.map(u=>({ ...u, createdAt: u.createdAt.toISOString() }))}
-        readings={readings.map(r=>({ ...r, createdAt: r.createdAt.toISOString(), user: r.user ? { id: r.user.id, email: r.user.email, name: r.user.name } : undefined }))}
+        readings={readings.map(r=>({
+          ...r,
+          createdAt: r.createdAt.toISOString(),
+          user: r.user ? { id: r.user.id, email: r.user.email || '', name: r.user.name, phoneCode: (r.user as any).phoneCode || null, phoneNumber: (r.user as any).phoneNumber || null } : undefined
+        }))}
       />
     </div>
   )

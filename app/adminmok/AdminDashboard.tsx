@@ -1,10 +1,14 @@
 "use client"
 
-import { useMemo, useState } from 'react'
+import { useEffect, useMemo, useRef, useState } from 'react'
+import Image from 'next/image'
+import { TAROT_DECK, shuffleDeck, cardImagePath, CARD_BACK_SRC } from '@/lib/tarot'
 
 type User = {
   id: string
-  email: string
+  email: string | null
+  phoneCode?: string | null
+  phoneNumber?: string | null
   name: string
   role: 'USER' | 'ADMIN'
   createdAt: string
@@ -21,17 +25,18 @@ type Reading = {
   category?: 'LOVE'|'MARRIAGE'|'WORK'|'LIFESTYLE'|'SPIRITUAL'|'EDUCATION'|'HEALTH'|'MONEY' | null
   createdAt: string
   cards?: any
-  user?: { id: string; email: string; name: string }
+  user?: { id: string; email: string | null; name: string; phoneCode?: string | null; phoneNumber?: string | null }
 }
 
 const CATEGORIES = ['LOVE','MARRIAGE','WORK','LIFESTYLE','SPIRITUAL','EDUCATION','HEALTH','MONEY'] as const
 
 export default function AdminDashboard({ users, readings }: { users: User[]; readings: Reading[] }) {
-  const [tab, setTab] = useState<'users'|'readings'>('users')
+  const [tab, setTab] = useState<'users'|'readings'|'zodiac'>('users')
   const [openUserId, setOpenUserId] = useState<string | null>(null)
   const [usersState, setUsersState] = useState<User[]>(users)
   const [readingsState, setReadingsState] = useState<Reading[]>(readings)
   const [openReading, setOpenReading] = useState<Reading | null>(null)
+  
 
   // Build lastActive map from readings
   const lastActive = useMemo(() => {
@@ -52,7 +57,8 @@ export default function AdminDashboard({ users, readings }: { users: User[]; rea
   const filteredUsers = useMemo(() => {
     const q = uQuery.trim().toLowerCase()
     let arr = usersState.filter(u => {
-      const okQ = !q || u.email.toLowerCase().includes(q) || u.name.toLowerCase().includes(q)
+      const phone = u.phoneCode && u.phoneNumber ? `+${u.phoneCode} ${u.phoneNumber}` : ''
+      const okQ = !q || (u.email?.toLowerCase() || '').includes(q) || u.name.toLowerCase().includes(q) || phone.toLowerCase().includes(q)
       const t = new Date(u.createdAt).getTime()
       const fromOk = !uCreatedFrom || t >= new Date(uCreatedFrom).getTime()
       const toOk = !uCreatedTo || t <= new Date(uCreatedTo).getTime() + 86_399_000
@@ -79,7 +85,8 @@ export default function AdminDashboard({ users, readings }: { users: User[]; rea
   const filteredReadings = useMemo(() => {
     const q = rQuery.trim().toLowerCase()
     let arr = readingsState.filter(r => {
-      const text = `${r.question} ${r.user?.name || ''} ${r.user?.email || ''}`.toLowerCase()
+      const phone = r.user?.phoneCode && r.user?.phoneNumber ? `+${r.user.phoneCode} ${r.user.phoneNumber}` : ''
+      const text = `${r.question} ${r.user?.name || ''} ${r.user?.email || ''} ${phone}`.toLowerCase()
       const okQ = !q || text.includes(q)
       const okC = rCats.length === 0 || (r.category && rCats.includes(r.category))
       return okQ && okC
@@ -113,6 +120,7 @@ export default function AdminDashboard({ users, readings }: { users: User[]; rea
         <nav className="space-y-1">
           <button onClick={() => setTab('users')} className={`w-full text-left px-3 py-2 rounded-md border ${tab==='users'?'border-mok-gold bg-black/40':'border-transparent hover:border-mok-goldDeep/30'}`}>Users</button>
           <button onClick={() => setTab('readings')} className={`w-full text-left px-3 py-2 rounded-md border ${tab==='readings'?'border-mok-gold bg-black/40':'border-transparent hover:border-mok-goldDeep/30'}`}>Readings</button>
+          <button onClick={() => setTab('zodiac')} className={`w-full text-left px-3 py-2 rounded-md border ${tab==='zodiac'?'border-mok-gold bg-black/40':'border-transparent hover:border-mok-goldDeep/30'}`}>Zodiac</button>
         </nav>
       </aside>
 
@@ -120,7 +128,7 @@ export default function AdminDashboard({ users, readings }: { users: User[]; rea
         {tab === 'users' && (
           <section>
             <div className="flex flex-wrap items-center gap-2 mb-3">
-              <input value={uQuery} onChange={e=>setUQuery(e.target.value)} placeholder="Search name or email" className="h-9 w-64 max-w-full rounded-md bg-black/40 border border-mok-goldDeep/40 px-3 outline-none" />
+              <input value={uQuery} onChange={e=>setUQuery(e.target.value)} placeholder="Search name, email or phone" className="h-9 w-64 max-w-full rounded-md bg-black/40 border border-mok-goldDeep/40 px-3 outline-none" />
               <select value={uSort} onChange={e=>setUSort(e.target.value as any)} className="h-9 rounded-md bg-black/40 border border-mok-goldDeep/40 px-2">
                 <option value="created_desc">Created · New → Old</option>
                 <option value="created_asc">Created · Old → New</option>
@@ -142,7 +150,7 @@ export default function AdminDashboard({ users, readings }: { users: User[]; rea
                 <thead className="bg-mok-smoke/60">
                   <tr>
                     <th className="p-2 text-left">Name</th>
-                    <th className="p-2 text-left">Email</th>
+                    <th className="p-2 text-left">Contact</th>
                     <th className="p-2 text-left">Role</th>
                     <th className="p-2 text-left">Created</th>
                     <th className="p-2 text-left">Last active</th>
@@ -153,7 +161,7 @@ export default function AdminDashboard({ users, readings }: { users: User[]; rea
                   {filteredUsers.map(u => (
                     <tr key={u.id} className="border-t border-mok-goldDeep/20 hover:bg-black/30">
                       <td className="p-2">{u.name}</td>
-                      <td className="p-2">{u.email}</td>
+                      <td className="p-2">{u.email || (u.phoneCode && u.phoneNumber ? `+${u.phoneCode} ${u.phoneNumber}` : '—')}</td>
                       <td className="p-2">{u.role}</td>
                       <td className="p-2 whitespace-nowrap">{new Date(u.createdAt).toLocaleString()}</td>
                       <td className="p-2 whitespace-nowrap text-neutral-300">{lastActive[u.id] ? new Date(lastActive[u.id]).toLocaleString() : '—'}</td>
@@ -180,7 +188,10 @@ export default function AdminDashboard({ users, readings }: { users: User[]; rea
                     <div className="flex items-center justify-between mb-3">
                       <div>
                         <div className="gold-gradient font-semibold text-lg">{u.name}</div>
-                        <div className="text-sm text-neutral-400">{u.email}</div>
+                        <div className="text-sm text-neutral-400">{u.email || '—'}</div>
+                        {u.phoneCode && u.phoneNumber && (
+                          <div className="text-sm text-neutral-400">+{u.phoneCode} {u.phoneNumber}</div>
+                        )}
                       </div>
                       <button onClick={()=>setOpenUserId(null)} className="px-3 py-1 rounded-md border border-mok-goldDeep/40 hover:border-mok-gold">Close</button>
                     </div>
@@ -227,7 +238,7 @@ export default function AdminDashboard({ users, readings }: { users: User[]; rea
         {tab === 'readings' && (
           <section>
             <div className="flex flex-wrap items-center gap-2 mb-3">
-              <input value={rQuery} onChange={e=>setRQuery(e.target.value)} placeholder="Search question, name, email" className="h-9 w-80 max-w-full rounded-md bg-black/40 border border-mok-goldDeep/40 px-3 outline-none" />
+              <input value={rQuery} onChange={e=>setRQuery(e.target.value)} placeholder="Search question, name, email or phone" className="h-9 w-80 max-w-full rounded-md bg-black/40 border border-mok-goldDeep/40 px-3 outline-none" />
               <select value={rSort} onChange={e=>setRSort(e.target.value as any)} className="h-9 rounded-md bg-black/40 border border-mok-goldDeep/40 px-2">
                 <option value="recent">Recent first</option>
                 <option value="oldest">Oldest first</option>
@@ -251,7 +262,7 @@ export default function AdminDashboard({ users, readings }: { users: User[]; rea
                   <tr>
                     <th className="p-2 text-left">When</th>
                     <th className="p-2 text-left">User</th>
-                    <th className="p-2 text-left">Email</th>
+                    <th className="p-2 text-left">Contact</th>
                     <th className="p-2 text-left">Category</th>
                     <th className="p-2 text-left">Question</th>
                   </tr>
@@ -261,7 +272,7 @@ export default function AdminDashboard({ users, readings }: { users: User[]; rea
                     <tr key={r.id} onClick={()=>setOpenReading(r)} className="border-t border-mok-goldDeep/20 align-top hover:bg-black/30 cursor-pointer">
                       <td className="p-2 whitespace-nowrap">{new Date(r.createdAt).toLocaleString()}</td>
                       <td className="p-2 whitespace-nowrap">{r.user?.name || '—'}</td>
-                      <td className="p-2 whitespace-nowrap">{r.user?.email || '—'}</td>
+                      <td className="p-2 whitespace-nowrap">{r.user?.email || (r.user?.phoneCode && r.user?.phoneNumber ? `+${r.user.phoneCode} ${r.user.phoneNumber}` : '—')}</td>
                       <td className="p-2"><span className="inline-block px-2 py-0.5 rounded border border-mok-goldDeep/40 text-xs">{r.category || '—'}</span></td>
                       <td className="p-2 max-w-[520px]"><div className="line-clamp-3 text-neutral-200">{r.question}</div></td>
                     </tr>
@@ -269,6 +280,12 @@ export default function AdminDashboard({ users, readings }: { users: User[]; rea
                 </tbody>
               </table>
             </div>
+          </section>
+        )}
+
+        {tab === 'zodiac' && (
+          <section>
+            <ZodiacAdmin />
           </section>
         )}
 
@@ -287,7 +304,7 @@ export default function AdminDashboard({ users, readings }: { users: User[]; rea
               <div className="space-y-3">
                 <div className="p-3 rounded-lg border border-mok-goldDeep/30 bg-black/30">
                   <div className="text-neutral-400 text-sm mb-1">User</div>
-                  <div className="text-sm">{openReading.user?.name || '—'} <span className="text-neutral-400">({openReading.user?.email || '—'})</span></div>
+                  <div className="text-sm">{openReading.user?.name || '—'} <span className="text-neutral-400">({openReading.user?.email || (openReading.user?.phoneCode && openReading.user?.phoneNumber ? `+${openReading.user.phoneCode} ${openReading.user.phoneNumber}` : '—')})</span></div>
                 </div>
                 <div className="p-3 rounded-lg border border-mok-goldDeep/30 bg-black/30">
                   <div className="text-neutral-400 text-sm mb-1">Question</div>
@@ -308,6 +325,101 @@ export default function AdminDashboard({ users, readings }: { users: User[]; rea
           </div>
         )}
       </main>
+    </div>
+  )
+}
+
+function ReactsButton({ readingId }: { readingId: string }) {
+  const [open, setOpen] = useState(false)
+  const [items, setItems] = useState<any[] | null>(null)
+  async function load() {
+    setOpen(true); setItems(null)
+    try {
+      const res = await fetch(`/api/admin/zodiac/${encodeURIComponent(readingId)}/reactions`)
+      const data = await res.json().catch(()=>({}))
+      if (res.ok) setItems(data.items || [])
+    } catch {}
+  }
+  return (
+    <>
+      <button onClick={load} className="px-2 py-1 rounded border border-mok-goldDeep/40 hover:border-mok-gold text-xs">Reacts</button>
+      {open && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center p-4">
+          <div className="absolute inset-0 bg-black/70" onClick={()=>setOpen(false)} />
+          <div className="relative z-10 w-full max-w-3xl mx-4 rounded-2xl border border-mok-goldDeep/40 bg-mok-black p-4 shadow-xl max-h-[90vh] overflow-y-auto thin-scroll">
+            <div className="flex items-center justify-between mb-3">
+              <div className="gold-gradient font-semibold">Reactions</div>
+              <button onClick={()=>setOpen(false)} className="px-3 py-1 rounded-md border border-mok-goldDeep/40 hover:border-mok-gold">Close</button>
+            </div>
+            <div className="overflow-x-auto border border-mok-goldDeep/30 rounded-lg">
+              <table className="w-full text-sm">
+                <thead className="bg-mok-smoke/60">
+                  <tr>
+                    <th className="p-2 text-left">User</th>
+                    <th className="p-2 text-left">Contact</th>
+                    <th className="p-2 text-left">When</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {(items||[]).map((r:any) => (
+                    <tr key={r.id} className="border-t border-mok-goldDeep/20 hover:bg-black/30">
+                      <td className="p-2">{r.name || '—'}</td>
+                      <td className="p-2">{r.email || (r.phoneCode && r.phoneNumber ? `+${r.phoneCode} ${r.phoneNumber}` : '—')}</td>
+                      <td className="p-2 whitespace-nowrap">{new Date(r.createdAt).toLocaleString()}</td>
+                    </tr>
+                  ))}
+                  {(!items || items.length===0) && (
+                    <tr><td className="p-3 text-neutral-400" colSpan={3}>No reactions yet</td></tr>
+                  )}
+                </tbody>
+              </table>
+            </div>
+          </div>
+        </div>
+      )}
+    </>
+  )
+}
+
+function ViewsModal({ reading, stats, onClose }: { reading: any, stats: any[] | null, onClose: ()=>void }) {
+  const total = (stats||[]).reduce((s, v)=> s + (v.count||0), 0)
+  return (
+    <div className="fixed inset-0 z-50 flex items-center justify-center p-4">
+      <div className="absolute inset-0 bg-black/70" onClick={onClose} />
+      <div className="relative z-10 w-full max-w-3xl mx-4 rounded-2xl border border-mok-goldDeep/40 bg-mok-black p-4 shadow-xl max-h-[90vh] overflow-y-auto thin-scroll">
+        <div className="flex items-center justify-between mb-3">
+          <div>
+            <div className="gold-gradient font-semibold">{reading.sign} · Views</div>
+            <div className="text-xs text-neutral-400">{new Date(reading.startDate).toLocaleDateString()} – {new Date(reading.endDate).toLocaleDateString()} · Total {total} views</div>
+          </div>
+          <button onClick={onClose} className="px-3 py-1 rounded-md border border-mok-goldDeep/40 hover:border-mok-gold">Close</button>
+        </div>
+        <div className="overflow-x-auto border border-mok-goldDeep/30 rounded-lg">
+          <table className="w-full text-sm">
+            <thead className="bg-mok-smoke/60">
+              <tr>
+                <th className="p-2 text-left">User</th>
+                <th className="p-2 text-left">Contact</th>
+                <th className="p-2 text-left">Count</th>
+                <th className="p-2 text-left">Last viewed</th>
+              </tr>
+            </thead>
+            <tbody>
+              {(stats||[]).map(v => (
+                <tr key={v.id} className="border-t border-mok-goldDeep/20 hover:bg-black/30">
+                  <td className="p-2">{v.name || '—'}</td>
+                  <td className="p-2">{v.email || (v.phoneCode && v.phoneNumber ? `+${v.phoneCode} ${v.phoneNumber}` : '—')}</td>
+                  <td className="p-2">{v.count}</td>
+                  <td className="p-2 whitespace-nowrap">{new Date(v.lastViewed).toLocaleString()}</td>
+                </tr>
+              ))}
+              {(!stats || stats.length===0) && (
+                <tr><td className="p-3 text-neutral-400" colSpan={4}>No views yet</td></tr>
+              )}
+            </tbody>
+          </table>
+        </div>
+      </div>
     </div>
   )
 }
@@ -354,6 +466,267 @@ function UserLimitEditor({ user, onClose }: { user: any; onClose: ()=>void }) {
       <p className="mt-2 text-xs text-neutral-400">
         Behavior: User can ask up to daily limit per day. After hitting the daily limit, they may continue up to Extra pool; each extra question consumes 1 from the pool.
       </p>
+    </div>
+  )
+}
+
+function ZodiacAdmin() {
+  const [sign, setSign] = useState<string>('ARIES')
+  const [start, setStart] = useState<string>('')
+  const [end, setEnd] = useState<string>('')
+  const startRef = useRef<HTMLInputElement | null>(null)
+  const endRef = useRef<HTMLInputElement | null>(null)
+  const [fakeReactions, setFakeReactions] = useState<number | ''>('')
+  const [editingId, setEditingId] = useState<string | null>(null)
+  const [deck, setDeck] = useState(TAROT_DECK)
+  const [selected, setSelected] = useState<number[]>([])
+  const [loading, setLoading] = useState(false)
+  const [sections, setSections] = useState<any>({ general:'', relationship:'', workMoney:'', health:'', education:'', warnings:'' })
+  const [list, setList] = useState<any[]>([])
+  const [statsFor, setStatsFor] = useState<any | null>(null)
+  const [stats, setStats] = useState<any[] | null>(null)
+  const [showFaces, setShowFaces] = useState(false)
+
+  useEffect(() => { fetchList() }, [])
+
+  async function fetchList() {
+    const res = await fetch('/api/admin/zodiac')
+    const data = await res.json().catch(()=>({}))
+    if (res.ok) setList(data.readings || [])
+  }
+
+  function doShuffle() {
+    setSelected([])
+    setDeck(shuffleDeck(3))
+    setShowFaces(false)
+  }
+  function togglePick(i: number) {
+    setSelected(prev => prev.includes(i) ? prev.filter(x=>x!==i) : (prev.length<3 ? [...prev, i] : prev))
+    setShowFaces(false)
+  }
+  const chosen = selected.map(i=>deck[i]).filter(Boolean)
+
+  async function generate() {
+    if (!sign || !start || !end || chosen.length !== 3) return
+    setLoading(true)
+    const cards = chosen.map(c=>c.name)
+    const res = await fetch('/api/admin/zodiac/generate', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ sign, startDate: start, endDate: end, cards }) })
+    const data = await res.json().catch(()=>({}))
+    setLoading(false)
+    if (res.ok) {
+      setSections(data.sections || {})
+      if (!data.sections && data.raw) setSections({ general: data.raw, relationship:'', workMoney:'', health:'', education:'', warnings:'' })
+      setShowFaces(true)
+    } else {
+      alert(data.error || 'Failed to generate')
+    }
+  }
+
+  async function save() {
+    const common = { sign, startDate: start, endDate: end, cards: chosen.map(c=>c.name), ...sections }
+    const body = fakeReactions === '' ? common : { ...common, fakeReactions: Number(fakeReactions) }
+    if (editingId) {
+      const res = await fetch(`/api/admin/zodiac/${encodeURIComponent(editingId)}`, { method: 'PATCH', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(body) })
+      const data = await res.json().catch(()=>({}))
+      if (res.ok) {
+        setList(prev => prev.map(x => x.id === editingId ? data.reading : x))
+        alert('Updated')
+      } else {
+        alert(data.error || 'Update failed')
+      }
+    } else {
+      const res = await fetch('/api/admin/zodiac', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(body) })
+      const data = await res.json().catch(()=>({}))
+      if (res.ok) {
+        setList(prev => [data.reading, ...prev])
+        alert('Saved')
+      } else {
+        alert(data.error || 'Save failed')
+      }
+    }
+  }
+
+  async function openStats(z: any) {
+    setStatsFor(z); setStats(null)
+    try {
+      const res = await fetch(`/api/admin/zodiac/${encodeURIComponent(z.id)}/views`)
+      const data = await res.json().catch(()=>({}))
+      if (res.ok) setStats(data.views || [])
+    } catch {}
+  }
+
+  function load(row: any) {
+    setSign(row.sign)
+    setStart(row.startDate?.slice(0,10) || '')
+    setEnd(row.endDate?.slice(0,10) || '')
+    setSections({ general: row.general||'', relationship: row.relationship||'', workMoney: row.workMoney||'', health: row.health||'', education: row.education||'', warnings: row.warnings||'' })
+    setFakeReactions(typeof row.fakeReactions === 'number' ? row.fakeReactions : '')
+    setEditingId(row.id || null)
+    const names: string[] = Array.isArray(row.cards) ? row.cards.map((x:any)=> typeof x==='string' ? x : x?.name) : []
+    const idxs: number[] = []
+    names.forEach(n => {
+      const i = deck.findIndex(c => c.name.toLowerCase() === String(n||'').toLowerCase())
+      if (i >= 0) idxs.push(i)
+    })
+    setSelected(idxs.slice(0,3))
+  }
+
+  function resetForm() {
+    setSign('ARIES'); setStart(''); setEnd(''); setSections({ general:'', relationship:'', workMoney:'', health:'', education:'', warnings:'' }); setSelected([]); setShowFaces(false); setFakeReactions(''); setEditingId(null)
+  }
+
+  return (
+    <div className="space-y-6">
+      <div className="gold-gradient text-lg font-semibold">Zodiac</div>
+      <div className="grid md:grid-cols-[1.1fr_1fr] gap-4 items-start">
+        <div className="p-3 rounded-xl border border-mok-goldDeep/30 bg-black/30">
+          <div className="grid sm:grid-cols-2 gap-3">
+            <label className="text-sm">
+              <div className="text-neutral-400 mb-1">Sign</div>
+              <select value={sign} onChange={e=>setSign(e.target.value)} className="h-10 w-full rounded-md bg-black/40 border border-mok-goldDeep/40 px-2">
+                {['ARIES','TAURUS','GEMINI','CANCER','LEO','VIRGO','LIBRA','SCORPIO','SAGITTARIUS','CAPRICORN','AQUARIUS','PISCES'].map(s => <option key={s} value={s}>{s}</option>)}
+              </select>
+            </label>
+            <div className="grid grid-cols-2 gap-2">
+              <label className="text-sm">
+                <div className="text-neutral-400 mb-1">Start</div>
+                <div className="relative">
+                  <input
+                    ref={startRef}
+                    type="date"
+                    value={start}
+                    onChange={e=>setStart(e.target.value)}
+                    className="h-10 w-full rounded-md bg-black/40 border border-mok-goldDeep/40 pl-3 pr-10"
+                  />
+                  <button
+                    type="button"
+                    onClick={() => {
+                      const el = startRef.current
+                      if (!el) return
+                      try { (el as any).showPicker?.() } catch {}
+                      el.focus()
+                    }}
+                    className="absolute right-1.5 top-1/2 -translate-y-1/2 inline-flex items-center justify-center h-7 w-7 rounded-md border border-transparent hover:border-mok-goldDeep/40 text-neutral-300 hover:text-mok-gold bg-transparent"
+                    aria-label="Open start date picker"
+                    title="Open calendar"
+                  >
+                    <svg viewBox="0 0 24 24" className="h-4 w-4" fill="none" stroke="currentColor" strokeWidth="1.6" strokeLinecap="round" strokeLinejoin="round" aria-hidden>
+                      <rect x="3" y="5" width="18" height="16" rx="2" ry="2"/>
+                      <path d="M16 3v4M8 3v4M3 11h18"/>
+                    </svg>
+                  </button>
+                </div>
+              </label>
+              <label className="text-sm">
+                <div className="text-neutral-400 mb-1">End</div>
+                <div className="relative">
+                  <input
+                    ref={endRef}
+                    type="date"
+                    value={end}
+                    onChange={e=>setEnd(e.target.value)}
+                    className="h-10 w-full rounded-md bg-black/40 border border-mok-goldDeep/40 pl-3 pr-10"
+                  />
+                  <button
+                    type="button"
+                    onClick={() => {
+                      const el = endRef.current
+                      if (!el) return
+                      try { (el as any).showPicker?.() } catch {}
+                      el.focus()
+                    }}
+                    className="absolute right-1.5 top-1/2 -translate-y-1/2 inline-flex items-center justify-center h-7 w-7 rounded-md border border-transparent hover:border-mok-goldDeep/40 text-neutral-300 hover:text-mok-gold bg-transparent"
+                    aria-label="Open end date picker"
+                    title="Open calendar"
+                  >
+                    <svg viewBox="0 0 24 24" className="h-4 w-4" fill="none" stroke="currentColor" strokeWidth="1.6" strokeLinecap="round" strokeLinejoin="round" aria-hidden>
+                      <rect x="3" y="5" width="18" height="16" rx="2" ry="2"/>
+                      <path d="M16 3v4M8 3v4M3 11h18"/>
+                    </svg>
+                  </button>
+                </div>
+              </label>
+            </div>
+          </div>
+
+          <div className="mt-4">
+            <div className="flex items-center justify-between mb-2">
+              <div className="text-sm text-mok-goldLight">ရွေးချယ်မည့် ကတ်များ</div>
+              <button onClick={doShuffle} className="px-3 py-1 rounded-md border border-mok-goldDeep/40 hover:border-mok-gold">Shuffle</button>
+            </div>
+            <div className="grid grid-cols-6 sm:grid-cols-8 md:grid-cols-10 gap-2">
+              {deck.map((c, idx) => (
+                <button key={c.id} type="button" onClick={()=>togglePick(idx)} className={`relative aspect-[3/5] rounded-md overflow-hidden border ${selected.includes(idx) ? 'border-mok-gold ring-2 ring-mok-gold/40' : 'border-mok-goldDeep/30 hover:border-mok-gold/50'}`}>
+                  <Image src={CARD_BACK_SRC} alt="card back" fill className="object-cover" />
+                </button>
+              ))}
+            </div>
+            <div className="mt-2 text-xs text-neutral-400">Selected: {chosen.map(c=>c.name).join(', ') || '—'}</div>
+          </div>
+
+          <div className="mt-4 flex items-center gap-2">
+            <button onClick={generate} disabled={loading || !sign || !start || !end || chosen.length!==3} className="px-3 py-2 rounded-md bg-gold-linear text-black disabled:opacity-60">{loading ? 'Generating…' : 'Generate Answer'}</button>
+            <button onClick={save} className="px-3 py-2 rounded-md border border-mok-goldDeep/40 hover:border-mok-gold">{editingId ? 'Update' : 'Save'}</button>
+            {editingId && (
+              <button onClick={resetForm} type="button" className="px-3 py-2 rounded-md border border-mok-goldDeep/40 hover:border-mok-gold/80 text-neutral-300">New</button>
+            )}
+          </div>
+
+          {showFaces && chosen.length === 3 && (
+            <div className="mt-4">
+              <div className="text-sm text-mok-goldLight mb-2">ရွေးချယ်ရသည့် ကတ်များ</div>
+              <div className="grid grid-cols-3 gap-2">
+                {chosen.map((c, i) => (
+                  <div key={`${c.id}-${i}`} className="relative aspect-[3/5] rounded-lg overflow-hidden border border-mok-gold/40">
+                    <Image src={cardImagePath(c)} alt={c.name} fill className="object-cover" />
+                  </div>
+                ))}
+              </div>
+            </div>
+          )}
+
+          <div className="mt-4 grid md:grid-cols-2 gap-3">
+            {(['general','relationship','workMoney','health','education','warnings'] as const).map((k) => (
+              <label key={k} className="text-sm">
+                <div className="text-neutral-400 mb-1">{k}</div>
+                <textarea rows={6} value={sections[k]} onChange={e=>setSections((s:any)=>({ ...s, [k]: e.target.value }))} className="w-full rounded-md bg-black/40 border border-mok-goldDeep/40 px-3 py-2" />
+              </label>
+            ))}
+          </div>
+          <div className="mt-3 grid sm:grid-cols-2 gap-3 max-w-lg">
+            <label className="text-sm">
+              <div className="text-neutral-400 mb-1">Fake reactions (display boost)</div>
+              <input type="number" min={0} value={fakeReactions} onChange={e=>setFakeReactions(e.target.value===''? '' : Number(e.target.value))} className="h-10 w-full rounded-md bg-black/40 border border-mok-goldDeep/40 px-3" />
+            </label>
+          </div>
+        </div>
+
+        <div className="p-3 rounded-xl border border-mok-goldDeep/30 bg-black/30">
+          <div className="gold-gradient font-medium mb-2">Latest</div>
+          <div className="space-y-2 max-h-[72vh] overflow-y-auto thin-scroll pr-1">
+            {list.map((z) => (
+              <div key={z.id} className="p-3 rounded-lg border border-mok-goldDeep/30 hover:border-mok-gold/60">
+                <div className="flex items-center justify-between text-xs text-neutral-400">
+                  <span>{z.sign}</span>
+                  <span>{new Date(z.createdAt).toLocaleString()}</span>
+                </div>
+                <div className="mt-1 text-sm">{new Date(z.startDate).toLocaleDateString()} – {new Date(z.endDate).toLocaleDateString()}</div>
+                <div className="mt-1 text-xs text-neutral-400 line-clamp-2">{z.general}</div>
+                <div className="mt-2 flex items-center gap-2">
+                  <span className="text-xs text-neutral-400">Fake: <span className="text-mok-gold">{z.fakeReactions ?? 0}</span></span>
+                  <button onClick={()=>load(z)} className="px-2 py-1 rounded border border-mok-goldDeep/40 hover:border-mok-gold text-xs">Edit</button>
+                  <button onClick={()=>openStats(z)} className="px-2 py-1 rounded border border-mok-goldDeep/40 hover:border-mok-gold text-xs">Views</button>
+                  <ReactsButton readingId={z.id} />
+                </div>
+              </div>
+            ))}
+            {list.length===0 && <div className="text-sm text-neutral-400">No entries</div>}
+          </div>
+        </div>
+      </div>
+      {statsFor && (
+        <ViewsModal reading={statsFor} stats={stats} onClose={()=>{ setStatsFor(null); setStats(null) }} />
+      )}
     </div>
   )
 }

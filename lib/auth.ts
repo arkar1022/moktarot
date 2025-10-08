@@ -7,7 +7,7 @@ export const COOKIE_NAME = 'mok_auth'
 export type JWTPayload = {
   uid: string
   role: 'USER' | 'ADMIN'
-  email: string
+  email?: string
   name?: string
 }
 

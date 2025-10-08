@@ -56,10 +56,11 @@ export function slugifyTarotName(name: string) {
 }
 
 export function cardImagePath(card: TarotCard) {
-  // Only use PNG. For majors (no "-of-"), enforce leading "the-" prefix.
+  // Only use PNG. For Major Arcana (ids 0..21), enforce leading "the-" prefix
+  // even if the name contains "of" (e.g., "Wheel of Fortune").
   const slug = slugifyTarotName(card.name)
-  const isMinor = /-of-/.test(slug)
-  const finalSlug = isMinor ? slug : (slug.startsWith('the-') ? slug : `the-${slug}`)
+  const isMajor = typeof card.id === 'number' && card.id >= 0 && card.id <= 21
+  const finalSlug = isMajor ? (slug.startsWith('the-') ? slug : `the-${slug}`) : slug
   return `/cards/${finalSlug}.png`
 }
 
