@@ -22,6 +22,37 @@ export default function DashboardPage() {
   const [limitMsg, setLimitMsg] = useState<string>('')
   const [limits, setLimits] = useState<{ remainingToday: number, extraQuota: number } | null>(null)
 
+  function formatAnswer(text: string) {
+    const esc = text
+      .replace(/&/g, '&amp;')
+      .replace(/</g, '&lt;')
+      .replace(/>/g, '&gt;')
+    const lines = esc.split('\n')
+    const chunks: string[] = []
+    for (const line of lines) {
+      const original = line
+      const trimmed = original.trim()
+      if (!trimmed) { chunks.push('<div class="h-2"></div>'); continue }
+      const isBullet = /^\s*[\*-]\s+/.test(original)
+      const isNumbered = /^\s*\d+\.\s+/.test(original)
+      const content = isBullet ? trimmed.replace(/^[\*-]\s+/, '') : trimmed
+      let html = content.replace(/\*\*(.+?)\*\*/g, '<strong>$1</strong>')
+      const isTitle = !isBullet && /^<strong>[^<]+<\/strong>\s*$/.test(html)
+      if (isBullet) {
+        chunks.push(`<div class="pl-3">• ${html}</div>`)
+      } else if (isNumbered) {
+        // Add vertical spacing between numbered paragraphs like "1.", "2.", ...
+        chunks.push(`<div class="mt-2">${html}</div>`)
+      } else if (isTitle) {
+        // Add spacing and gold color for bold title-like lines
+        chunks.push(`<div class="mt-3 text-mok-gold font-semibold">${html}</div>`)
+      } else {
+        chunks.push(`<div>${html}</div>`)
+      }
+    }
+    return chunks.join('')
+  }
+
   async function fetchLimits() {
     try {
       const res = await fetch('/api/user/limits', { cache: 'no-store' })
@@ -274,7 +305,7 @@ export default function DashboardPage() {
                 </div>
               )}
               {result && (
-                <p className="whitespace-pre-wrap leading-7">{result}</p>
+                <div className="leading-7" dangerouslySetInnerHTML={{ __html: formatAnswer(result) }} />
               )}
             </div>
           </div>
