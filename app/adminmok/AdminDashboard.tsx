@@ -145,10 +145,17 @@ export default function AdminDashboard({ users, readings }: { users: User[]; rea
               </div>
             </div>
 
+            <div className="mb-2 text-xs text-neutral-400">
+              Total users: <span className="text-mok-gold">{usersState.length}</span>
+              {filteredUsers.length !== usersState.length && (
+                <> · Showing: <span className="text-mok-gold">{filteredUsers.length}</span></>
+              )}
+            </div>
             <div className="overflow-x-auto border border-mok-goldDeep/30 rounded-lg">
               <table className="w-full text-sm">
                 <thead className="bg-mok-smoke/60">
                   <tr>
+                    <th className="p-2 text-left w-12">No.</th>
                     <th className="p-2 text-left">Name</th>
                     <th className="p-2 text-left">Contact</th>
                     <th className="p-2 text-left">Role</th>
@@ -158,8 +165,9 @@ export default function AdminDashboard({ users, readings }: { users: User[]; rea
                   </tr>
                 </thead>
                 <tbody>
-                  {filteredUsers.map(u => (
+                  {filteredUsers.map((u, idx) => (
                     <tr key={u.id} className="border-t border-mok-goldDeep/20 hover:bg-black/30">
+                      <td className="p-2 text-neutral-400">{idx + 1}</td>
                       <td className="p-2">{u.name}</td>
                       <td className="p-2">{u.email || (u.phoneCode && u.phoneNumber ? `+${u.phoneCode} ${u.phoneNumber}` : '—')}</td>
                       <td className="p-2">{u.role}</td>

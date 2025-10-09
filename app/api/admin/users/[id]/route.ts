@@ -23,7 +23,9 @@ export async function DELETE(_req: Request, { params }: { params: { id: string }
   const auth = getAuthCookie()
   if (!auth || auth.role !== 'ADMIN') return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
   try {
-    // Remove readings first, then user
+    // Remove dependent records first to satisfy FK constraints
+    await prisma.zodiacReaction.deleteMany({ where: { userId: params.id } })
+    await prisma.zodiacView.deleteMany({ where: { userId: params.id } })
     await prisma.reading.deleteMany({ where: { userId: params.id } })
     await prisma.user.delete({ where: { id: params.id } })
     return NextResponse.json({ ok: true })
