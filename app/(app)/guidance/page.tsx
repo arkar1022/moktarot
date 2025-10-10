@@ -55,13 +55,13 @@ export default function GuidancePage() {
 
       <section>
         <p className="mb-2 text-sm text-neutral-400">ဘာသာကို ရွေးပါ</p>
-        <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
+        <div className="grid grid-cols-4 gap-2 sm:gap-3">
           {RELIGIONS.map(r => (
-            <button key={r.key} onClick={()=>setSelected(r.key)} className={`p-3 rounded-xl border transition bg-black/30 hover:border-mok-gold ${selected===r.key? 'border-mok-gold ring-2 ring-mok-gold/40' : 'border-mok-goldDeep/30'}`}>
+            <button key={r.key} onClick={()=>setSelected(r.key)} className={`p-2 sm:p-3 rounded-xl border transition bg-black/30 hover:border-mok-gold ${selected===r.key? 'border-mok-gold ring-2 ring-mok-gold/40' : 'border-mok-goldDeep/30'}`}>
               <div className="relative aspect-square rounded-lg overflow-hidden border border-mok-goldDeep/30">
                 <Image src={r.img} alt={r.name} fill sizes="180px" className="object-cover" />
               </div>
-              <div className="mt-2 text-center text-sm">{r.name}</div>
+              <div className="mt-2 text-center text-xs sm:text-sm">{r.name}</div>
             </button>
           ))}
         </div>
@@ -100,4 +100,3 @@ export default function GuidancePage() {
     </div>
   )
 }
-
