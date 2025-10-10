@@ -11,9 +11,10 @@ export default async function AdminPage() {
   const payload = token ? verifyToken(token) : null
   if (!payload || payload.role !== 'ADMIN') redirect('/')
 
-  const [users, readings] = await Promise.all([
+  const [users, readings, guidances] = await Promise.all([
     prisma.user.findMany({ orderBy: { createdAt: 'desc' } }),
-    prisma.reading.findMany({ orderBy: { createdAt: 'desc' }, include: { user: true }, take: 500 })
+    prisma.reading.findMany({ orderBy: { createdAt: 'desc' }, include: { user: true }, take: 500 }),
+    prisma.guidance.findMany({ orderBy: { createdAt: 'desc' }, include: { user: true }, take: 500 })
   ])
 
   return (
@@ -25,6 +26,11 @@ export default async function AdminPage() {
           ...r,
           createdAt: r.createdAt.toISOString(),
           user: r.user ? { id: r.user.id, email: r.user.email || '', name: r.user.name, phoneCode: (r.user as any).phoneCode || null, phoneNumber: (r.user as any).phoneNumber || null } : undefined
+        }))}
+        guidances={guidances.map(g=>({
+          ...g,
+          createdAt: g.createdAt.toISOString(),
+          user: g.user ? { id: g.user.id, email: g.user.email || '', name: g.user.name, phoneCode: (g.user as any).phoneCode || null, phoneNumber: (g.user as any).phoneNumber || null } : undefined
         }))}
       />
     </div>

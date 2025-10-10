@@ -30,12 +30,26 @@ type Reading = {
 
 const CATEGORIES = ['LOVE','MARRIAGE','WORK','LIFESTYLE','SPIRITUAL','EDUCATION','HEALTH','MONEY'] as const
 
-export default function AdminDashboard({ users, readings }: { users: User[]; readings: Reading[] }) {
-  const [tab, setTab] = useState<'users'|'readings'|'zodiac'>('users')
+type Guidance = {
+  id: string
+  userId: string
+  religion: 'BUDDHIST'|'HINDU'|'CHRISTIAN'|'ISLAM'
+  question: string
+  answer: string
+  createdAt: string
+  user?: { id: string; email: string | null; name: string; phoneCode?: string | null; phoneNumber?: string | null }
+}
+
+export default function AdminDashboard({ users, readings, guidances }: { users: User[]; readings: Reading[]; guidances: Guidance[] }) {
+  const [tab, setTab] = useState<'users'|'readings'|'guidance'|'zodiac'>('users')
   const [openUserId, setOpenUserId] = useState<string | null>(null)
   const [usersState, setUsersState] = useState<User[]>(users)
   const [readingsState, setReadingsState] = useState<Reading[]>(readings)
+  const [guidancesState, setGuidancesState] = useState<Guidance[]>(guidances)
   const [openReading, setOpenReading] = useState<Reading | null>(null)
+  const [openGuidance, setOpenGuidance] = useState<Guidance | null>(null)
+  const [userDetailTab, setUserDetailTab] = useState<'readings'|'guidance'>('readings')
+  useEffect(()=>{ setUserDetailTab('readings') }, [openUserId])
   
 
   // Build lastActive map from readings
@@ -45,8 +59,12 @@ export default function AdminDashboard({ users, readings }: { users: User[]; rea
       const cur = map[r.userId]
       if (!cur || new Date(r.createdAt) > new Date(cur)) map[r.userId] = r.createdAt
     }
+    for (const g of guidancesState) {
+      const cur = map[g.userId]
+      if (!cur || new Date(g.createdAt) > new Date(cur)) map[g.userId] = g.createdAt
+    }
     return map
-  }, [readingsState])
+  }, [readingsState, guidancesState])
 
   /* USERS state */
   const [uQuery, setUQuery] = useState('')
@@ -107,6 +125,7 @@ export default function AdminDashboard({ users, readings }: { users: User[]; rea
       if (!res.ok) throw new Error('Failed')
       setUsersState(prev => prev.filter(u => u.id !== id))
       setReadingsState(prev => prev.filter(r => r.userId !== id))
+      setGuidancesState(prev => prev.filter(g => g.userId !== id))
       if (openUserId === id) setOpenUserId(null)
     } catch (e) {
       alert('Failed to delete user.')
@@ -120,6 +139,7 @@ export default function AdminDashboard({ users, readings }: { users: User[]; rea
         <nav className="space-y-1">
           <button onClick={() => setTab('users')} className={`w-full text-left px-3 py-2 rounded-md border ${tab==='users'?'border-mok-gold bg-black/40':'border-transparent hover:border-mok-goldDeep/30'}`}>Users</button>
           <button onClick={() => setTab('readings')} className={`w-full text-left px-3 py-2 rounded-md border ${tab==='readings'?'border-mok-gold bg-black/40':'border-transparent hover:border-mok-goldDeep/30'}`}>Readings</button>
+          <button onClick={() => setTab('guidance')} className={`w-full text-left px-3 py-2 rounded-md border ${tab==='guidance'?'border-mok-gold bg-black/40':'border-transparent hover:border-mok-goldDeep/30'}`}>Guidance</button>
           <button onClick={() => setTab('zodiac')} className={`w-full text-left px-3 py-2 rounded-md border ${tab==='zodiac'?'border-mok-gold bg-black/40':'border-transparent hover:border-mok-goldDeep/30'}`}>Zodiac</button>
         </nav>
       </aside>
@@ -189,6 +209,7 @@ export default function AdminDashboard({ users, readings }: { users: User[]; rea
               const u = usersState.find(x=>x.id===openUserId)
               if (!u) return null
               const rs = readingsState.filter(r=>r.userId===u.id)
+              const gs = guidancesState.filter(g=>g.userId===u.id)
               return (
                 <div className="fixed inset-0 z-50 flex items-center justify-center p-4">
                   <div className="absolute inset-0 bg-black/70" onClick={()=>setOpenUserId(null)} />
@@ -223,18 +244,42 @@ export default function AdminDashboard({ users, readings }: { users: User[]; rea
                     </div>
                     <UserLimitEditor user={u} onClose={()=>setOpenUserId(null)} />
                     <div>
-                      <div className="gold-gradient font-medium mb-2">Readings ({rs.length})</div>
-                      <div className="space-y-2">
-                        {rs.map(r => (
-                          <button key={r.id} onClick={()=>setOpenReading(r)} className="text-left w-full p-3 rounded-lg border border-mok-goldDeep/30 bg-black/30 hover:border-mok-gold">
-                            <div className="flex items-center justify-between text-xs text-neutral-400">
-                              <span>{new Date(r.createdAt).toLocaleString()}</span>
-                              <span className="px-2 py-0.5 rounded border border-mok-goldDeep/40">{r.category || '—'}</span>
-                            </div>
-                            <div className="mt-1 text-sm text-neutral-200">{r.question}</div>
-                          </button>
-                        ))}
+                      <div className="flex items-center gap-2 mb-2">
+                        <button onClick={()=>setUserDetailTab('readings')} className={`px-3 py-1.5 rounded-md border ${userDetailTab==='readings'?'border-mok-gold bg-black/40':'border-mok-goldDeep/40 hover:border-mok-gold'}`}>Readings ({rs.length})</button>
+                        <button onClick={()=>setUserDetailTab('guidance')} className={`px-3 py-1.5 rounded-md border ${userDetailTab==='guidance'?'border-mok-gold bg-black/40':'border-mok-goldDeep/40 hover:border-mok-gold'}`}>Guidance ({gs.length})</button>
                       </div>
+                      {userDetailTab==='readings' && (
+                        <div className="space-y-2">
+                          {rs.map(r => (
+                            <button key={r.id} onClick={()=>setOpenReading(r)} className="text-left w-full p-3 rounded-lg border border-mok-goldDeep/30 bg-black/30 hover:border-mok-gold">
+                              <div className="flex items-center justify-between text-xs text-neutral-400">
+                                <span>{new Date(r.createdAt).toLocaleString()}</span>
+                                <span className="px-2 py-0.5 rounded border border-mok-goldDeep/40">{r.category || '—'}</span>
+                              </div>
+                              <div className="mt-1 text-sm text-neutral-200">{r.question}</div>
+                            </button>
+                          ))}
+                          {rs.length===0 && (
+                            <div className="p-3 text-sm text-neutral-400">No readings yet</div>
+                          )}
+                        </div>
+                      )}
+                      {userDetailTab==='guidance' && (
+                        <div className="space-y-2">
+                          {gs.map(g => (
+                            <button key={g.id} onClick={()=>setOpenGuidance(g)} className="text-left w-full p-3 rounded-lg border border-mok-goldDeep/30 bg-black/30 hover:border-mok-gold">
+                              <div className="flex items-center justify-between text-xs text-neutral-400">
+                                <span>{new Date(g.createdAt).toLocaleString()}</span>
+                                <span className="px-2 py-0.5 rounded border border-mok-goldDeep/40">{g.religion}</span>
+                              </div>
+                              <div className="mt-1 text-sm text-neutral-200">{g.question}</div>
+                            </button>
+                          ))}
+                          {gs.length===0 && (
+                            <div className="p-3 text-sm text-neutral-400">No guidance yet</div>
+                          )}
+                        </div>
+                      )}
                     </div>
                   </div>
                 </div>
@@ -291,6 +336,35 @@ export default function AdminDashboard({ users, readings }: { users: User[]; rea
           </section>
         )}
 
+        {tab === 'guidance' && (
+          <section>
+            <div className="overflow-x-auto border border-mok-goldDeep/30 rounded-lg">
+              <table className="w-full text-sm">
+                <thead className="bg-mok-smoke/60">
+                  <tr>
+                    <th className="p-2 text-left">When</th>
+                    <th className="p-2 text-left">User</th>
+                    <th className="p-2 text-left">Contact</th>
+                    <th className="p-2 text-left">Religion</th>
+                    <th className="p-2 text-left">Question</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {guidancesState.map(g => (
+                    <tr key={g.id} onClick={()=>setOpenGuidance(g)} className="border-t border-mok-goldDeep/20 align-top hover:bg-black/30 cursor-pointer">
+                      <td className="p-2 whitespace-nowrap">{new Date(g.createdAt).toLocaleString()}</td>
+                      <td className="p-2 whitespace-nowrap">{g.user?.name || '—'}</td>
+                      <td className="p-2 whitespace-nowrap">{g.user?.email || (g.user?.phoneCode && g.user?.phoneNumber ? `+${g.user.phoneCode} ${g.user.phoneNumber}` : '—')}</td>
+                      <td className="p-2"><span className="inline-block px-2 py-0.5 rounded border border-mok-goldDeep/40 text-xs">{g.religion}</span></td>
+                      <td className="p-2 max-w-[520px]"><div className="line-clamp-3 text-neutral-200">{g.question}</div></td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            </div>
+          </section>
+        )}
+
         {tab === 'zodiac' && (
           <section>
             <ZodiacAdmin />
@@ -327,6 +401,36 @@ export default function AdminDashboard({ users, readings }: { users: User[]; rea
                 <div className="p-3 rounded-lg border border-mok-goldDeep/30 bg-black/30">
                   <div className="text-neutral-400 text-sm mb-1">Answer</div>
                   <div className="whitespace-pre-wrap leading-7">{openReading.answer}</div>
+                </div>
+              </div>
+            </div>
+          </div>
+        )}
+
+        {/* Guidance detail modal */}
+        {openGuidance && (
+          <div className="fixed inset-0 z-50 flex items-center justify-center p-4">
+            <div className="absolute inset-0 bg-black/70" onClick={()=>setOpenGuidance(null)} />
+            <div className="relative z-10 w-full max-w-3xl mx-4 rounded-2xl border border-mok-goldDeep/40 bg-mok-black p-4 shadow-xl max-h-[90vh] overflow-y-auto thin-scroll">
+              <div className="flex items-center justify-between mb-3">
+                <div>
+                  <div className="gold-gradient font-semibold">Guidance Detail</div>
+                  <div className="text-xs text-neutral-400">{new Date(openGuidance.createdAt).toLocaleString()} · {openGuidance.religion}</div>
+                </div>
+                <button onClick={()=>setOpenGuidance(null)} className="px-3 py-1 rounded-md border border-mok-goldDeep/40 hover:border-mok-gold">Close</button>
+              </div>
+              <div className="space-y-3">
+                <div className="p-3 rounded-lg border border-mok-goldDeep/30 bg-black/30">
+                  <div className="text-neutral-400 text-sm mb-1">User</div>
+                  <div className="text-sm">{openGuidance.user?.name || '—'} <span className="text-neutral-400">({openGuidance.user?.email || (openGuidance.user?.phoneCode && openGuidance.user?.phoneNumber ? `+${openGuidance.user.phoneCode} ${openGuidance.user.phoneNumber}` : '—')})</span></div>
+                </div>
+                <div className="p-3 rounded-lg border border-mok-goldDeep/30 bg-black/30">
+                  <div className="text-neutral-400 text-sm mb-1">Question</div>
+                  <div>{openGuidance.question}</div>
+                </div>
+                <div className="p-3 rounded-lg border border-mok-goldDeep/30 bg-black/30">
+                  <div className="text-neutral-400 text-sm mb-1">Answer</div>
+                  <div className="whitespace-pre-wrap leading-7">{openGuidance.answer}</div>
                 </div>
               </div>
             </div>

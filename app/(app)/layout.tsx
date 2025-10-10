@@ -24,6 +24,7 @@ export default function AppLayout({ children }: { children: React.ReactNode }) {
           <div className="hidden sm:flex items-center gap-4 text-sm">
             <Link href="/app/dashboard" className="hover:text-mok-gold">ပင်မ</Link>
             <Link href="/app/history" className="hover:text-mok-gold">မှတ်တမ်း</Link>
+            <Link href="/app/guidance" className="hover:text-mok-gold">၀ိညာဉ်အကြံဉာဏ်</Link>
             <Link href="/app/zodiac" className="hover:text-mok-gold">ရာသီခွင်</Link>
             {isAdmin && <Link href="/adminmok" className="hover:text-mok-gold">Admin</Link>}
             <Link href="/app/profile" className="hover:text-mok-gold">ပရိုဖိုင်း</Link>

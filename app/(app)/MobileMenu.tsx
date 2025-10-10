@@ -56,6 +56,7 @@ export default function MobileMenu() {
               </div>
             </button>
             <a href="/app/zodiac" className="block p-2 text-sm rounded-md hover:bg-black/40">ရာသီခွင်</a>
+            <a href="/app/guidance" className="block p-2 text-sm rounded-md hover:bg-black/40">၀ိညာဉ်အကြံဉာဏ်</a>
             <a href="/app/history" className="block p-2 text-sm rounded-md hover:bg-black/40">မှတ်တမ်း</a>
             {role === 'ADMIN' && (
               <a href="/adminmok" className="block p-2 text-sm rounded-md hover:bg-black/40">Admin</a>
