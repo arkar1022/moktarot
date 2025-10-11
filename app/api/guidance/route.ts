@@ -28,7 +28,7 @@ async function askOpenAI(prompt: string): Promise<string | null> {
   try {
     const res = await fetch('https://api.openai.com/v1/chat/completions', {
       method: 'POST', headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${key}` },
-      body: JSON.stringify({ model, temperature: 0.8, messages: [ { role: 'system', content: 'Answer strictly in Myanmar (Burmese). Use a calm, soft, supportive male voice. Be concise, practical, and respectful to each religion. Address the user by name once at the start if provided. Include exact scripture citations (book/sutta, chapter:verse or surah:ayah) inline where you reference teachings.' }, { role: 'user', content: prompt } ] })
+      body: JSON.stringify({ model, temperature: 0.8, messages: [ { role: 'system', content: 'Answer strictly in Myanmar (Burmese). Use a calm, soft, supportive male voice. Be concise, respectful to each religion, and address the user by name once at the start if provided. Avoid overused generic maxims and avoid repeating generic practices (e.g., “meditation” for every case). Prioritize teaching the core concepts, logics, and short memorable phrases from the tradition that shape wise thinking. You may quote short phrases, but do not include verse/source numbers.' }, { role: 'user', content: prompt } ] })
     })
     const json = await res.json().catch(()=>({}))
     const text = json?.choices?.[0]?.message?.content as string | undefined
@@ -72,21 +72,24 @@ Religion: ${religion} (${religionNameMm[religion]})
 Question: "${question}"
 
 Instructions (Write answer in Myanmar/Burmese, soft/calm male tone):
-- Provide spiritual guidance grounded in ${religion} teachings—be respectful and practical.
-- You may cite themes/ideas from: ${scriptureHints[religion]} (no need for exact verse numbers).
-- Avoid dogma or judgments; focus on everyday, actionable advice.
 - IMPORTANT: At the very beginning, address the user by their name once: ${displayName}
+- Provide guidance grounded in ${religion} teachings—be respectful and practical when advice is appropriate.
+- Avoid repeating popular, generic maxims; pick specific teachings most relevant to the question.
+- You may quote short phrases from teachings (in Burmese) and mention the scripture/teaching name thematically, but do NOT include numeric verse/source codes.
+
+Mode:
+- Life Guidance mode: The user seeks help for personal life/choices. Include practical steps.
+- Doctrinal/Explanatory mode: The user asks about what the religion/teacher says on a topic (e.g., “What did Buddha say about afterlife?”). In this mode, explain the teachings clearly and STOP; do NOT include practical guidance.
 
 Structure:
 1) Brief empathetic opening acknowledging the question.
-2) 2–3 concise references to teachings/leaders/scriptures (paraphrased) and their meaning for this case. After each reference, include an exact citation in parentheses. Examples: Dhammapada 1:1; SN 56.11; Bhagavad Gita 2:47; Rig Veda 10.90.1; Matthew 6:34; John 14:27; Quran 2:286; Quran 94:5–6; a Hadith ref such as Sahih Muslim 2691.
-3) 3–5 practical action steps for daily/weekly practice (prayer/meditation/virtue/compassion/service, etc.).
-4) Gentle, peaceful closing line.
+2) 3–6 concise references to teachings/leaders/scriptures (paraphrased or short phrases) and explain their meaning for this case. Mention the source thematically if useful, but avoid numeric citations.
+3) If Life Guidance mode: give 5–7 concept-focused steps to keep in mind (key principles, mental models, ways of seeing, short maxims from the tradition). Avoid repeating generic practices like “meditate/pray” as default; if a practice is uniquely relevant, include at most one and make it specific to the case.
+4) If Life Guidance mode: add a gentle, peaceful closing line with prayer. If Doctrinal mode: close with prayer.
 
 Constraints:
 - Output must be in Myanmar (Burmese) language only.
-- No medical or legal claims; keep it supportive and realistic.
-- Include at least two exact citations as shown above, appropriate to ${religion}.`
+- No medical or legal claims; keep it supportive and realistic.`
 
   let answer: string | null = null
   const pref = (process.env.AI_PROVIDER || '').toLowerCase()
