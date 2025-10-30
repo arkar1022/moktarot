@@ -1,7 +1,7 @@
 import { prisma } from '@/lib/prisma'
 import { NextResponse } from 'next/server'
 import bcrypt from 'bcrypt'
-import { setAuthOnResponse } from '@/lib/auth'
+import { setAuthOnResponse, signToken } from '@/lib/auth'
 import { normalizePhone } from '@/lib/phone'
 
 function isGmail(email: string) { return /@gmail\.com$/i.test(email) }
@@ -62,7 +62,9 @@ export async function POST(req: Request) {
     // Fallback for environments where schema hasn't been migrated yet
     user = await prisma.user.create({ data: { email: data.email, name, passwordHash } })
   }
-  const res = NextResponse.json({ id: user.id, email: user.email, phoneCode: user.phoneCode, phoneNumber: user.phoneNumber, name: user.name, role: user.role })
-  setAuthOnResponse(res, { uid: user.id, role: user.role, email: user.email || undefined, name: user.name })
+  const payload = { uid: user.id, role: user.role, email: user.email || undefined, name: user.name }
+  const token = signToken(payload)
+  const res = NextResponse.json({ id: user.id, email: user.email, phoneCode: user.phoneCode, phoneNumber: user.phoneNumber, name: user.name, role: user.role, token })
+  setAuthOnResponse(res, payload)
   return res
 }

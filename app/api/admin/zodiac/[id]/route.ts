@@ -1,9 +1,9 @@
 import { NextResponse } from 'next/server'
 import { prisma } from '@/lib/prisma'
-import { getAuthCookie } from '@/lib/auth'
+import { getAuth } from '@/lib/auth'
 
 export async function PATCH(req: Request, { params }: { params: { id: string } }) {
-  const auth = getAuthCookie()
+  const auth = getAuth(req)
   if (!auth || auth.role !== 'ADMIN') return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
   const b = await req.json().catch(()=>({})) as any
   const data: any = {}
@@ -19,7 +19,7 @@ export async function PATCH(req: Request, { params }: { params: { id: string } }
 }
 
 export async function DELETE(_req: Request, { params }: { params: { id: string } }) {
-  const auth = getAuthCookie()
+  const auth = getAuth(_req)
   if (!auth || auth.role !== 'ADMIN') return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
   try {
     await prisma.zodiacReading.delete({ where: { id: params.id } })

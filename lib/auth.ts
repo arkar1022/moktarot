@@ -32,6 +32,26 @@ export function getAuthCookie(): JWTPayload | null {
   return verifyToken(token)
 }
 
+// Accepts either an Authorization: Bearer <jwt> header (preferred for mobile)
+// or falls back to the httpOnly cookie used on the web app.
+export function getAuth(req?: Request): JWTPayload | null {
+  try {
+    if (req) {
+      const authHeader = req.headers.get('authorization') || req.headers.get('Authorization')
+      if (authHeader) {
+        const m = authHeader.match(/^Bearer\s+(.+)$/i)
+        if (m) {
+          const payload = verifyToken(m[1])
+          if (payload) return payload
+        }
+      }
+    }
+  } catch {
+    // ignore and fall back to cookie
+  }
+  return getAuthCookie()
+}
+
 export function setAuthCookie(payload: JWTPayload) {
   const store = cookies()
   const token = signToken(payload)

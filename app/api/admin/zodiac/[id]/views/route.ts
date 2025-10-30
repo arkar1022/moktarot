@@ -1,9 +1,9 @@
 import { NextResponse } from 'next/server'
 import { prisma } from '@/lib/prisma'
-import { getAuthCookie } from '@/lib/auth'
+import { getAuth } from '@/lib/auth'
 
 export async function GET(_req: Request, { params }: { params: { id: string } }) {
-  const auth = getAuthCookie()
+  const auth = getAuth(_req)
   if (!auth || auth.role !== 'ADMIN') return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
   try {
     const views = await prisma.zodiacView.findMany({
@@ -27,4 +27,3 @@ export async function GET(_req: Request, { params }: { params: { id: string } })
     return NextResponse.json({ error: 'Failed' }, { status: 400 })
   }
 }
-

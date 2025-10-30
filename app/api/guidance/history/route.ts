@@ -1,9 +1,9 @@
 import { NextResponse } from 'next/server'
 import { prisma } from '@/lib/prisma'
-import { getAuthCookie } from '@/lib/auth'
+import { getAuth } from '@/lib/auth'
 
-export async function GET() {
-  const auth = getAuthCookie()
+export async function GET(req: Request) {
+  const auth = getAuth(req)
   if (!auth) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
   const items = await prisma.guidance.findMany({
     where: { userId: auth.uid },
@@ -11,4 +11,3 @@ export async function GET() {
   })
   return NextResponse.json({ guidances: items })
 }
-

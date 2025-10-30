@@ -1,16 +1,16 @@
 import { NextResponse } from 'next/server'
 import { prisma } from '@/lib/prisma'
-import { getAuthCookie } from '@/lib/auth'
+import { getAuth } from '@/lib/auth'
 
-export async function GET() {
-  const auth = getAuthCookie()
+export async function GET(req: Request) {
+  const auth = getAuth(req)
   if (!auth || auth.role !== 'ADMIN') return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
   const rows = await prisma.zodiacReading.findMany({ orderBy: { createdAt: 'desc' }, take: 200 })
   return NextResponse.json({ readings: rows })
 }
 
 export async function POST(req: Request) {
-  const auth = getAuthCookie()
+  const auth = getAuth(req)
   if (!auth || auth.role !== 'ADMIN') return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
   const b = await req.json().catch(()=>({})) as any
   const { sign, startDate, endDate, cards, general, relationship, workMoney, health, education, warnings } = b

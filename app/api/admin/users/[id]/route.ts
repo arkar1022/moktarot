@@ -1,9 +1,9 @@
 import { NextResponse } from 'next/server'
 import { prisma } from '@/lib/prisma'
-import { getAuthCookie } from '@/lib/auth'
+import { getAuth } from '@/lib/auth'
 
 export async function PATCH(_req: Request, { params }: { params: { id: string } }) {
-  const auth = getAuthCookie()
+  const auth = getAuth(_req)
   if (!auth || auth.role !== 'ADMIN') return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
 
   const body = await _req.json().catch(()=>({})) as any
@@ -20,7 +20,7 @@ export async function PATCH(_req: Request, { params }: { params: { id: string } 
 }
 
 export async function DELETE(_req: Request, { params }: { params: { id: string } }) {
-  const auth = getAuthCookie()
+  const auth = getAuth(_req)
   if (!auth || auth.role !== 'ADMIN') return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
   try {
     // Remove dependent records first to satisfy FK constraints

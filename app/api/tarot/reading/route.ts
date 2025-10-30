@@ -1,6 +1,6 @@
 import { NextResponse } from 'next/server'
 import { prisma } from '@/lib/prisma'
-import { getAuthCookie } from '@/lib/auth'
+import { getAuth } from '@/lib/auth'
 
 async function askOpenAI(prompt: string) {
   const key = process.env.OPENAI_API_KEY
@@ -130,7 +130,7 @@ function normalizeCategory(label: string | null | undefined): 'LOVE'|'MARRIAGE'|
 }
 
 export async function POST(req: Request) {
-  const auth = getAuthCookie()
+  const auth = getAuth(req)
   if (!auth) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
 
   const { question, selectedCards, language = 'my' } = await req.json()

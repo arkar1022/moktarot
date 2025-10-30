@@ -1,10 +1,10 @@
 import { prisma } from '@/lib/prisma'
-import { getAuthCookie } from '@/lib/auth'
+import { getAuth } from '@/lib/auth'
 import { NextResponse } from 'next/server'
 import bcrypt from 'bcrypt'
 
 export async function POST(req: Request) {
-  const auth = getAuthCookie()
+  const auth = getAuth(req)
   if (!auth) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
   const { name, avatar, password, currentPassword } = await req.json()
 

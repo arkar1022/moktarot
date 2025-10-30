@@ -1,6 +1,6 @@
 import { NextResponse } from 'next/server'
 import { prisma } from '@/lib/prisma'
-import { getAuthCookie } from '@/lib/auth'
+import { getAuth } from '@/lib/auth'
 
 export async function GET(_req: Request, { params }: { params: { id: string } }) {
   const readingId = params.id
@@ -16,7 +16,7 @@ export async function GET(_req: Request, { params }: { params: { id: string } })
     const [realCount, reacted] = await Promise.all([
       prisma.zodiacReaction.count({ where: { readingId } }),
       (async () => {
-        const auth = getAuthCookie()
+        const auth = getAuth(_req)
         if (!auth) return false
         try {
           const existing = await prisma.zodiacReaction.findUnique({

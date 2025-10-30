@@ -1,9 +1,9 @@
 import { NextResponse } from 'next/server'
 import { prisma } from '@/lib/prisma'
-import { getAuthCookie } from '@/lib/auth'
+import { getAuth } from '@/lib/auth'
 
-export async function GET() {
-  const auth = getAuthCookie()
+export async function GET(req: Request) {
+  const auth = getAuth(req)
   if (!auth) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
 
   // Defaults if fields aren’t present yet
@@ -22,4 +22,3 @@ export async function GET() {
 
   return NextResponse.json({ dailyLimit, usedToday, remainingToday, extraQuota })
 }
-

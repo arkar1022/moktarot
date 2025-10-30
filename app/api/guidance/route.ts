@@ -1,6 +1,6 @@
 import { NextResponse } from 'next/server'
 import { prisma } from '@/lib/prisma'
-import { getAuthCookie } from '@/lib/auth'
+import { getAuth } from '@/lib/auth'
 
 type Religion = 'BUDDHIST' | 'HINDU' | 'CHRISTIAN' | 'ISLAM'
 
@@ -38,7 +38,7 @@ async function askOpenAI(prompt: string): Promise<string | null> {
 }
 
 export async function POST(req: Request) {
-  const auth = getAuthCookie()
+  const auth = getAuth(req)
   if (!auth) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
 
   const body = await req.json().catch(()=>({})) as any

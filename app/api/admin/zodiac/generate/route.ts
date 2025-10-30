@@ -1,5 +1,5 @@
 import { NextResponse } from 'next/server'
-import { getAuthCookie } from '@/lib/auth'
+import { getAuth } from '@/lib/auth'
 
 async function askGemini(prompt: string): Promise<string | null> {
   const key = process.env.GEMINI_API_KEY
@@ -19,7 +19,7 @@ async function askGemini(prompt: string): Promise<string | null> {
 }
 
 export async function POST(req: Request) {
-  const auth = getAuthCookie()
+  const auth = getAuth(req)
   if (!auth || auth.role !== 'ADMIN') return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
   const b = await req.json().catch(()=>({})) as any
   const { sign, startDate, endDate, cards } = b
