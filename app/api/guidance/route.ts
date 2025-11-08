@@ -1,6 +1,7 @@
 import { NextResponse } from 'next/server'
 import { prisma } from '@/lib/prisma'
 import { getAuth } from '@/lib/auth'
+import { logInfo, reqMeta } from '@/lib/log'
 
 type Religion = 'BUDDHIST' | 'HINDU' | 'CHRISTIAN' | 'ISLAM'
 
@@ -38,12 +39,14 @@ async function askOpenAI(prompt: string): Promise<string | null> {
 }
 
 export async function POST(req: Request) {
+  const meta = reqMeta(req)
   const auth = getAuth(req)
   if (!auth) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
 
   const body = await req.json().catch(()=>({})) as any
   const religion = String(body?.religion || '').toUpperCase() as Religion
   const question = (body?.question || '').toString().trim()
+  logInfo('GUIDANCE_REQUEST', { ...meta, userId: auth.uid, religion, qlen: question.length })
   if (!['BUDDHIST','HINDU','CHRISTIAN','ISLAM'].includes(religion)) {
     return NextResponse.json({ error: 'Invalid religion' }, { status: 400 })
   }

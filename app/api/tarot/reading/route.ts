@@ -1,8 +1,9 @@
 import { NextResponse } from 'next/server'
 import { prisma } from '@/lib/prisma'
 import { getAuth } from '@/lib/auth'
+import { logInfo, reqMeta } from '@/lib/log'
 
-async function askOpenAI(prompt: string) {
+async function askOpenAI(prompt: string, lang: 'my'|'en') {
   const key = process.env.OPENAI_API_KEY
   const envModel = (process.env.OPENAI_MODEL || '').trim()
   // Allow common typo like "gpt5" by falling back to supported models
@@ -49,7 +50,7 @@ async function askOpenAI(prompt: string) {
   return 'မော်ဒယ်မရရှိနိုင်သော်လည်း — OPENAI_MODEL ကို gpt-4o (သို့) gpt-4 အဖြစ် ပြောင်းပြီး နောက်တစ်ကြိမ် ပြန်ကြိုးစားပါ။'
 }
 
-async function askGemini(prompt: string) {
+async function askGemini(prompt: string, lang: 'my'|'en') {
   const key = process.env.GEMINI_API_KEY
   const model = (process.env.GEMINI_MODEL || 'gemini-2.5-flash').trim()
   if (!key) return null
@@ -59,7 +60,7 @@ async function askGemini(prompt: string) {
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({
         contents: [
-          { role: 'user', parts: [{ text: `မြန်မာဘာသာဖြင့် ဖြေပါ။ အမျိုးသား တာရော့ဖတ်ရှုသူ (ယောကျ်ားသံ) သဘောတရားဖြင့် တိတိကျကျ ပြောပါ။\n\n${prompt}` }] }
+          { role: 'user', parts: [{ text: `${lang==='en' ? 'Answer in English.' : 'မြန်မာဘာသာဖြင့် ဖြေပါ။'} အမျိုးသား တာရော့ဖတ်ရှုသူ (ယောကျ်ားသံ) သဘောတရားဖြင့် တိတိကျကျ ပြောပါ။\n\n${prompt}` }] }
         ],
         generationConfig: { temperature: 0.85 }
       })
@@ -130,11 +131,13 @@ function normalizeCategory(label: string | null | undefined): 'LOVE'|'MARRIAGE'|
 }
 
 export async function POST(req: Request) {
+  const meta = reqMeta(req)
   const auth = getAuth(req)
   if (!auth) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
 
   const { question, selectedCards, language = 'my' } = await req.json()
   const q = (question ?? '').toString().trim()
+  logInfo('TAROT_READING_REQUEST', { ...meta, userId: auth.uid, qlen: q.length })
   if (!q || q.length > 150 || !Array.isArray(selectedCards) || selectedCards.length !== 3) {
     return NextResponse.json({ error: 'Invalid input' }, { status: 400 })
   }
@@ -161,7 +164,21 @@ export async function POST(req: Request) {
 
   const cardsText = selectedCards.map((c: any) => (typeof c === 'string' ? c : c.name)).join(', ')
   const displayName = (auth.name?.trim() || auth.email?.split('@')[0] || '').trim() || 'မိတ်ဆွေ'
-  const prompt = `အသုံးပြုသူအမည်: ${displayName}
+  const prompt = language === 'en' ?
+`User name: ${displayName}
+Question: "${q}"
+Selected cards: ${cardsText}
+
+Tone & Structure:
+- Speak like a warm but confident male tarot reader.
+- Avoid overly romantic or flowery language.
+1) Summarize each selected card in relation to the question (opportunities/challenges/obstacles).
+2) End with one concise overall message (main takeaway).
+3) Add 2–3 practical, actionable suggestions (today/this week).
+4) Keep it practical and useful; avoid long poetic sentences.
+- Use ${displayName}'s name once at the start, then continue the explanation.`
+:
+`အသုံးပြုသူအမည်: ${displayName}
 မေးခွန်း: "${q}"
 ရွေးချယ်ထားသော ကတ်များ: ${cardsText}
 
@@ -175,15 +192,16 @@ export async function POST(req: Request) {
 - စကားအစတွင် ${displayName} အမည်ကို တစ်ကြိမ်သာ သဘောတော်တော်နဲ့ သုံးပြီး ဆက်လက်ရှင်းပြပါ။`
 
   let answer: string | null = null
-  const provider = (process.env.AI_PROVIDER || '').toLowerCase()
+  let provider = (process.env.AI_PROVIDER || '').toLowerCase()
+  if (language === 'en') provider = 'gemini'
   if (provider === 'gemini') {
-    answer = await askGemini(prompt)
-    if (!answer) answer = await askOpenAI(prompt)
+    answer = await askGemini(prompt, language)
+    if (!answer) answer = await askOpenAI(prompt, language)
   } else {
     // default to OpenAI; if missing, try Gemini
-    answer = await askOpenAI(prompt)
+    answer = await askOpenAI(prompt, language)
     if (!answer || /Mock ပြန်သွားပါ/.test(answer)) {
-      const g = await askGemini(prompt)
+      const g = await askGemini(prompt, language)
       if (g) answer = g
     }
   }

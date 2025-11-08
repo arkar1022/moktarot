@@ -3,6 +3,7 @@ import { NextResponse } from 'next/server'
 import bcrypt from 'bcrypt'
 import { setAuthOnResponse, signToken } from '@/lib/auth'
 import { normalizePhone } from '@/lib/phone'
+import { logInfo, logError, maskEmail, maskPhone, reqMeta } from '@/lib/log'
 
 function isGmail(email: string) { return /@gmail\.com$/i.test(email) }
 
@@ -15,6 +16,7 @@ function normalizeGender(g: any): 'MALE'|'FEMALE'|'OTHER'|undefined {
 }
 
 export async function POST(req: Request) {
+  const meta = reqMeta(req)
   const body = await req.json().catch(()=>({})) as any
   const email: string | undefined = body.email
   const phoneCodeRaw: string | undefined = body.phoneCode
@@ -25,6 +27,7 @@ export async function POST(req: Request) {
   const age = body.age
 
   if (!name || !password) {
+    logError('AUTH_REGISTER_BAD_REQUEST', { ...meta, reason: 'missing_name_or_password', email: maskEmail(email), phoneCode: phoneCodeRaw, phone: maskPhone(phoneNumberRaw) })
     return NextResponse.json({ error: 'Missing fields' }, { status: 400 })
   }
 
@@ -32,22 +35,37 @@ export async function POST(req: Request) {
   let data: any = {}
 
   if (email) {
-    if (!isGmail(email)) return NextResponse.json({ error: 'Gmail only' }, { status: 400 })
+    if (!isGmail(email)) {
+      logError('AUTH_REGISTER_REJECT', { ...meta, reason: 'non_gmail', email: maskEmail(email) })
+      return NextResponse.json({ error: 'Gmail only' }, { status: 400 })
+    }
     const exists = await prisma.user.findUnique({ where: { email } })
-    if (exists) return NextResponse.json({ error: 'User exists' }, { status: 409 })
+    if (exists) {
+      logError('AUTH_REGISTER_CONFLICT', { ...meta, reason: 'email_exists', email: maskEmail(email) })
+      return NextResponse.json({ error: 'User exists' }, { status: 409 })
+    }
     contactOk = true
     data.email = email
   } else if (phoneCodeRaw && phoneNumberRaw) {
     const { code, number } = normalizePhone(phoneCodeRaw, phoneNumberRaw)
-    if (!code || !number) return NextResponse.json({ error: 'Invalid phone' }, { status: 400 })
+    if (!code || !number) {
+      logError('AUTH_REGISTER_REJECT', { ...meta, reason: 'invalid_phone', phoneCode: phoneCodeRaw, phone: maskPhone(phoneNumberRaw) })
+      return NextResponse.json({ error: 'Invalid phone' }, { status: 400 })
+    }
     const exists = await prisma.user.findUnique({ where: { phoneCode_phoneNumber: { phoneCode: code, phoneNumber: number } } }).catch(()=>null as any)
-    if (exists) return NextResponse.json({ error: 'User exists' }, { status: 409 })
+    if (exists) {
+      logError('AUTH_REGISTER_CONFLICT', { ...meta, reason: 'phone_exists', phoneCode: code, phone: maskPhone(number) })
+      return NextResponse.json({ error: 'User exists' }, { status: 409 })
+    }
     contactOk = true
     data.phoneCode = code
     data.phoneNumber = number
   }
 
-  if (!contactOk) return NextResponse.json({ error: 'Missing contact' }, { status: 400 })
+  if (!contactOk) {
+    logError('AUTH_REGISTER_BAD_REQUEST', { ...meta, reason: 'missing_contact' })
+    return NextResponse.json({ error: 'Missing contact' }, { status: 400 })
+  }
 
   const passwordHash = await bcrypt.hash(password, 10)
   data = { ...data, name, passwordHash }
@@ -66,5 +84,6 @@ export async function POST(req: Request) {
   const token = signToken(payload)
   const res = NextResponse.json({ id: user.id, email: user.email, phoneCode: user.phoneCode, phoneNumber: user.phoneNumber, name: user.name, role: user.role, token })
   setAuthOnResponse(res, payload)
+  logInfo('AUTH_REGISTER_OK', { ...meta, userId: user.id })
   return res
 }

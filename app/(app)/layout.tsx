@@ -26,6 +26,7 @@ export default function AppLayout({ children }: { children: React.ReactNode }) {
             <Link href="/app/history" className="hover:text-mok-gold">မှတ်တမ်း</Link>
             <Link href="/app/guidance" className="hover:text-mok-gold">၀ိညာဉ်အကြံဉာဏ်</Link>
             <Link href="/app/zodiac" className="hover:text-mok-gold">ရာသီခွင်</Link>
+            <Link href="/app/goodness" className="hover:text-mok-gold">ကောင်းမှု မှတ်တမ်း</Link>
             {isAdmin && <Link href="/adminmok" className="hover:text-mok-gold">Admin</Link>}
             <Link href="/app/profile" className="hover:text-mok-gold">ပရိုဖိုင်း</Link>
             <UserAvatar />

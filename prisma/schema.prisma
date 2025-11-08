@@ -73,6 +73,7 @@ model User {
   zodiacViews  ZodiacView[]
   zodiacReactions ZodiacReaction[]
   guidances    Guidance[]
+  goodDeeds   GoodDeed[]
 
   @@unique([phoneCode, phoneNumber])
 }
@@ -152,4 +153,40 @@ model Guidance {
   createdAt DateTime  @default(now())
 
   @@index([userId, createdAt])
+}
+
+enum GoodDeedCategory {
+  FAMILY
+  COMMUNITY
+  RELIGION
+  SELF_GROWTH
+  HEALTH
+  FINANCIAL
+  EDUCATION
+  ENVIRONMENT
+  KINDNESS
+  PROFESSIONAL
+}
+
+enum GoodDeedBelief {
+  BUDDHIST
+  HINDU
+  CHRISTIAN
+  ISLAM
+  ATHEIST
+}
+
+model GoodDeed {
+  id         String            @id @default(cuid())
+  user       User              @relation(fields: [userId], references: [id])
+  userId     String
+  deedDate   DateTime
+  note       String
+  categories GoodDeedCategory[]
+  aiFeedback String
+  language   String            @default("my")
+  belief     GoodDeedBelief    @default(ATHEIST)
+  createdAt  DateTime          @default(now())
+
+  @@index([userId, deedDate])
 }
