@@ -15,26 +15,57 @@ type GoodDeed = {
 }
 
 const BELIEFS = [
-  { value: 'BUDDHIST', label: 'ဗုဒ္ဓဘာသာ' },
-  { value: 'HINDU', label: 'ဟိန္ဒူ' },
-  { value: 'CHRISTIAN', label: 'ခရစ်ယာန်' },
-  { value: 'ISLAM', label: 'အစ္စလာမ်' },
-  { value: 'ATHEIST', label: 'နတ်မယုံ (Atheist)' },
-]
+  { value: 'BUDDHIST', labelMy: 'ဗုဒ္ဓဘာသာ', labelEn: 'Buddhist' },
+  { value: 'HINDU', labelMy: 'ဟိန္ဒူ', labelEn: 'Hindu' },
+  { value: 'CHRISTIAN', labelMy: 'ခရစ်ယာန်', labelEn: 'Christian' },
+  { value: 'ISLAM', labelMy: 'အစ္စလာမ်', labelEn: 'Islam' },
+  { value: 'ATHEIST', labelMy: 'နတ်မယုံ (Atheist)', labelEn: 'Atheist' },
+] as const
+
+const COPY = {
+  en: {
+    title: 'Good Deeds Journal',
+    dateLabel: 'Date',
+    beliefLabel: 'Belief',
+    submit: 'Save Deed',
+    submitting: 'Saving…',
+    listTitle: 'Logged deeds',
+    empty: 'No deeds yet — log today’s kindness to get started.',
+    coinsLabel: 'Coins',
+    errorRequired: 'Please describe your good deed.',
+    fetchError: 'Unable to load your deeds right now.',
+    saveError: 'Unable to save right now — please try again.',
+  },
+  my: {
+    title: 'ကောင်းမှု မှတ်တမ်း',
+    dateLabel: 'နေ့ရက်',
+    beliefLabel: 'ဘာသာ',
+    submit: 'မှတ်တမ်းတင်မည်',
+    submitting: 'သိမ်းဆည်းနေပါသည်…',
+    listTitle: 'လုပ်ကောင်းမှု မှတ်တမ်းများ',
+    empty: 'မှတ်တမ်း မရှိသေးပါ — ယနေ့လုပ်ကောင်းမှုကို စရေးကြည့်ပါ။',
+    coinsLabel: 'ကွိုင်',
+    errorRequired: 'လုပ်ကောင်းမှုကို ရေးသားပေးပါ',
+    fetchError: 'လုပ်ဆောင်မှုများကို မရရှိနိုင်ပါ',
+    saveError: 'သိမ်းဆည်း၍ မရပါ — ခဏကြာ၍ ပြန်ကြိုးစားပါ။',
+  }
+} as const
 
 export default function GoodnessPage() {
   const today = new Date().toISOString().slice(0, 10)
   const [note, setNote] = useState('')
   const [date, setDate] = useState(today)
-  const [language, setLanguage] = useState<'my'|'en'>(() => (typeof document !== 'undefined' && document.documentElement.lang === 'en') ? 'en' : 'my')
+  const [language] = useState<'my'|'en'>(() => (typeof document !== 'undefined' && document.documentElement.lang === 'en') ? 'en' : 'my')
   const [belief, setBelief] = useState<string>('BUDDHIST')
   const [loading, setLoading] = useState(false)
   const [entries, setEntries] = useState<GoodDeed[]>([])
   const [error, setError] = useState<string | null>(null)
   const [coins, setCoins] = useState<number>(0)
+  const copy = COPY[language]
 
   useEffect(() => {
     let active = true
+    const fetchErrorMessage = COPY[language].fetchError
     ;(async () => {
       try {
         const res = await fetch('/api/deeds', { cache: 'no-store' })
@@ -43,16 +74,16 @@ export default function GoodnessPage() {
         setEntries(data.deeds || [])
         setCoins(data.coins ?? 0)
       } catch (e: any) {
-        if (active) setError(e?.message || 'မိတ်ဆွေ့လုပ်ဆောင်မှုများကို မရရှိနိုင်ပါ')
+        if (active) setError(fetchErrorMessage)
       }
     })()
     return () => { active = false }
-  }, [])
+  }, [language])
 
   async function submit(e: React.FormEvent) {
     e.preventDefault()
     if (!note.trim()) {
-      setError('လုပ်ကောင်းမှုကို ရေးသားပေးပါ')
+      setError(copy.errorRequired)
       return
     }
     setLoading(true)
@@ -64,13 +95,13 @@ export default function GoodnessPage() {
           body: JSON.stringify({ note, deedDate: date, language, belief })
         })
         const data = await res.json().catch(()=>({}))
-        if (!res.ok) throw new Error(data?.error || 'မအောင်မြင်သေးပါ')
+        if (!res.ok) throw new Error(data?.error || copy.saveError)
         setEntries(prev => [data.deed, ...prev])
         setCoins(data.coins ?? 0)
       setNote('')
       setDate(today)
     } catch (e: any) {
-      setError(e?.message || 'AI ကို မခေါ်နိုင်ပါ — ခဏကြာ၍ ထပ်မံကြိုးစားပါ')
+      setError(e?.message || copy.saveError)
     } finally {
       setLoading(false)
     }
@@ -79,7 +110,7 @@ export default function GoodnessPage() {
   return (
     <div className="space-y-6">
       <header className="space-y-2">
-        <h1 className="gold-gradient text-xl font-semibold">ကောင်းမှု မှတ်တမ်း</h1>
+        <h1 className="gold-gradient text-xl font-semibold">{copy.title}</h1>
         <p className="text-sm text-neutral-400">
           {language === 'en'
             ? 'The Deed Collector is your personal journal for recognizing the good you do every day. Don\'t worry about the size of the action—record any kind of deed, even small victories like controlling your anger or offering a simple compliment.'
@@ -92,7 +123,7 @@ export default function GoodnessPage() {
         </p>
         <p className="text-xs text-mok-gold/80">
           {language === 'en'
-            ? 'Each deed also earns up to 50 coins based on its impact—track your positive influence!'
+            ? 'Each deed can earn up to 50 coins based on its impact—collect them to unlock more tarot readings later.'
             : 'လုပ်ခဲ့သမျှ ကောင်းမှုတစ်ခုစီသည် အများဆုံး ကွန်ပွန် ၅၀ (Coins) ရရှိနိုင်ပါသည်။'}
         </p>
         <div className="inline-flex items-center gap-2 rounded-full border border-mok-goldDeep/40 bg-black/40 px-3 py-1 text-xs text-mok-goldLight">
@@ -100,7 +131,7 @@ export default function GoodnessPage() {
             <circle cx="12" cy="12" r="9" strokeLinecap="round" strokeLinejoin="round" />
             <path d="M12 7v10M9 10h6M9 14h6" strokeLinecap="round" strokeLinejoin="round" />
           </svg>
-          <span>Coins: <strong className="text-mok-gold">{coins}</strong></span>
+          <span>{copy.coinsLabel}: <strong className="text-mok-gold">{coins}</strong></span>
         </div>
       </header>
 
@@ -119,7 +150,7 @@ export default function GoodnessPage() {
         </div>
         <div className="grid gap-3 sm:grid-cols-3">
           <label className="grid gap-1 text-sm">
-            <span className="text-mok-goldLight">နေ့ရက်</span>
+            <span className="text-mok-goldLight">{copy.dateLabel}</span>
             <input
               type="date"
               value={date}
@@ -129,10 +160,10 @@ export default function GoodnessPage() {
             />
           </label>
           <label className="grid gap-1 text-sm">
-            <span className="text-mok-goldLight">ဘာသာ</span>
+            <span className="text-mok-goldLight">{copy.beliefLabel}</span>
             <select value={belief} onChange={(e) => setBelief(e.target.value)} className="rounded-lg border border-mok-goldDeep/40 bg-[#050505] p-2">
               {BELIEFS.map(opt => (
-                <option key={opt.value} value={opt.value}>{opt.label}</option>
+                <option key={opt.value} value={opt.value}>{language === 'en' ? opt.labelEn : opt.labelMy}</option>
               ))}
             </select>
           </label>
@@ -142,7 +173,7 @@ export default function GoodnessPage() {
               disabled={loading}
               className="w-full rounded-xl bg-mok-gold px-4 py-2 font-semibold text-black disabled:opacity-70"
             >
-              {loading ? 'သိမ်းဆည်းနေပါသည်…' : 'မှတ်တမ်းတင်မည်'}
+              {loading ? copy.submitting : copy.submit}
             </button>
           </div>
         </div>
@@ -150,9 +181,9 @@ export default function GoodnessPage() {
       </form>
 
       <section className="space-y-3">
-        <h2 className="text-sm font-semibold text-mok-goldLight">လုပ်ကောင်းမှု မှတ်တမ်းများ</h2>
+        <h2 className="text-sm font-semibold text-mok-goldLight">{copy.listTitle}</h2>
         {entries.length === 0 && (
-          <p className="text-sm text-neutral-500">မှတ်တမ်း မရှိသေးပါ — ယနေ့လုပ်ကောင်းမှုကို စရေးကြည့်ပါ။</p>
+          <p className="text-sm text-neutral-500">{copy.empty}</p>
         )}
         <div className="space-y-3">
           {entries.map(entry => (
@@ -162,7 +193,7 @@ export default function GoodnessPage() {
                 <span>·</span>
                 <span>{entry.language === 'en' ? 'English' : 'မြန်မာ'}</span>
                 <span>·</span>
-                <span>{beliefLabel(entry.belief)}</span>
+                <span>{beliefLabel(entry.belief, language)}</span>
                 {typeof entry.points === 'number' && (
                   <>
                     <span>·</span>
@@ -172,6 +203,9 @@ export default function GoodnessPage() {
                         <path d="M12 7v10M9 10h6M9 14h6" strokeLinecap="round" strokeLinejoin="round" />
                       </svg>
                       <strong>{entry.points}</strong>
+                      <span className="text-[11px] uppercase tracking-wide">
+                        {language === 'en' ? 'coins' : 'ကွိုင်'}
+                      </span>
                     </span>
                   </>
                 )}
@@ -196,13 +230,16 @@ export default function GoodnessPage() {
   )
 }
 
-function beliefLabel(belief?: string) {
-  switch ((belief || '').toUpperCase()) {
-    case 'BUDDHIST': return 'ဗုဒ္ဓဘာသာ';
-    case 'HINDU': return 'ဟိန္ဒူ';
-    case 'CHRISTIAN': return 'ခရစ်ယာန်';
-    case 'ISLAM': return 'အစ္စလာမ်';
-    case 'ATHEIST': return 'နတ်မယုံ';
-    default: return belief || '';
+function beliefLabel(belief?: string, lang: 'en' | 'my' = 'my') {
+  const map: Record<string, { en: string; my: string }> = {
+    BUDDHIST: { en: 'Buddhist', my: 'ဗုဒ္ဓဘာသာ' },
+    HINDU: { en: 'Hindu', my: 'ဟိန္ဒူ' },
+    CHRISTIAN: { en: 'Christian', my: 'ခရစ်ယာန်' },
+    ISLAM: { en: 'Islam', my: 'အစ္စလာမ်' },
+    ATHEIST: { en: 'Atheist', my: 'နတ်မယုံ' },
   }
+  const key = (belief || '').toUpperCase()
+  const entry = map[key]
+  if (!entry) return belief || ''
+  return lang === 'en' ? entry.en : entry.my
 }

@@ -122,7 +122,30 @@ Guidelines:
 }
 
 function safeJson(text: string) {
-  try { return JSON.parse(text) } catch { return null }
+  if (!text) return null
+  const trimmed = text.trim()
+  const candidates = [
+    trimmed.replace(/^```(?:json)?/i, '').replace(/```$/, '').trim(),
+    trimmed
+  ]
+
+  for (const candidate of candidates) {
+    if (!candidate) continue
+    try {
+      return JSON.parse(candidate)
+    } catch {
+      // try to salvage substring between first { and last }
+      const first = candidate.indexOf('{')
+      const last = candidate.lastIndexOf('}')
+      if (first >= 0 && last > first) {
+        const slice = candidate.slice(first, last + 1)
+        try {
+          return JSON.parse(slice)
+        } catch {}
+      }
+    }
+  }
+  return null
 }
 
 function normalizeBelief(input: string | undefined): BeliefKey {
