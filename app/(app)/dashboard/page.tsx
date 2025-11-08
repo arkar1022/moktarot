@@ -20,7 +20,9 @@ export default function DashboardPage() {
   const requestIdRef = useRef(0)
   const [limitModal, setLimitModal] = useState(false)
   const [limitMsg, setLimitMsg] = useState<string>('')
-  const [limits, setLimits] = useState<{ remainingToday: number, extraQuota: number } | null>(null)
+  const [limits, setLimits] = useState<{ remainingToday: number, extraQuota: number, dailyLimit: number, usedToday: number } | null>(null)
+  const [coins, setCoins] = useState<number | null>(null)
+  const [converting, setConverting] = useState(false)
 
   function formatAnswer(text: string) {
     const esc = text
@@ -58,8 +60,41 @@ export default function DashboardPage() {
       const res = await fetch('/api/user/limits', { cache: 'no-store' })
       if (!res.ok) return
       const data = await res.json()
-      setLimits({ remainingToday: data.remainingToday ?? 0, extraQuota: data.extraQuota ?? 0 })
+      setLimits({
+        remainingToday: data.remainingToday ?? 0,
+        extraQuota: data.extraQuota ?? 0,
+        dailyLimit: data.dailyLimit ?? 3,
+        usedToday: data.usedToday ?? 0,
+      })
     } catch {}
+  }
+
+  async function fetchCoins() {
+    try {
+      const res = await fetch('/api/deeds', { cache: 'no-store' })
+      if (!res.ok) return
+      const data = await res.json().catch(()=>({}))
+      setCoins(typeof data.coins === 'number' ? data.coins : 0)
+    } catch {}
+  }
+
+  async function convertCoins() {
+    if (converting) return
+    setConverting(true)
+    try {
+      const res = await fetch('/api/deeds/convert', { method: 'POST' })
+      const data = await res.json().catch(()=>({}))
+      if (!res.ok) {
+        alert(data?.error || 'Conversion failed')
+      } else {
+        setCoins(data.coins ?? 0)
+        setLimits(prev => prev ? { ...prev, extraQuota: data.extraQuota ?? prev.extraQuota } : prev)
+      }
+    } catch (e: any) {
+      alert(e?.message || 'Conversion failed')
+    } finally {
+      setConverting(false)
+    }
   }
   // No pre-resolution or variant handling; filenames are authoritative
 
@@ -68,7 +103,7 @@ export default function DashboardPage() {
   // Force show specific trio (The Fool, Ace of Cups, Death) when enabled via env
   const forceTrio = useMemo(() => process.env.NEXT_PUBLIC_FORCE_TRIO === '1', [])
   const forcedNames = ['The Fool', 'Ace of Cups', 'Death']
-  const chosenCards = useMemo(() => {
+const chosenCards = useMemo(() => {
     if (forceTrio) {
       return forcedNames
         .map(n => TAROT_DECK.find(c => c.name === n))
@@ -113,7 +148,7 @@ export default function DashboardPage() {
       revealTimers.current.forEach(id => clearTimeout(id))
       revealTimers.current = []
     }
-  }, [showModal, chosenCards.map(c=>c.id).join(',')])
+}, [showModal, chosenCards.map(c=>c.id).join(',')])
 
   // No candidate variants; all assets use strict naming in /public/cards as .png
 
@@ -211,7 +246,17 @@ export default function DashboardPage() {
     }
   }
 
-  useEffect(() => { setDeck(shuffleDeck(3)); fetchLimits() }, [])
+  useEffect(() => { setDeck(shuffleDeck(3)); fetchLimits(); fetchCoins() }, [])
+
+  const availableQuestions = useMemo(() => {
+    if (!limits) return null
+    return Math.max(0, limits.remainingToday + limits.extraQuota)
+  }, [limits])
+
+  const totalQuota = useMemo(() => {
+    if (!limits) return null
+    return limits.dailyLimit + limits.extraQuota
+  }, [limits])
 
   // No forced selection
 
@@ -219,18 +264,73 @@ export default function DashboardPage() {
 
   return (
     <div className="space-y-6">
-      <section className="grid gap-3 items-stretch sm:grid-cols-[1fr_320px]">
-        <div>
-          <div className="mb-3 flex items-center gap-3 text-xs text-neutral-300">
-            <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded bg-black/40 border border-mok-goldDeep/40">
-              <span className="text-mok-gold">နေ့စဉ်လက်ကျန်</span>
-              <strong>{limits ? limits.remainingToday : '—'}</strong>
+      <section className="grid gap-4 sm:grid-cols-2">
+        <div className="rounded-2xl border border-mok-goldDeep/40 bg-gradient-to-br from-black/70 via-[#120a04] to-black/60 p-4 shadow-[0_10px_45px_rgba(0,0,0,0.45)]">
+          <div className="flex items-center gap-4">
+            <div className="flex h-12 w-12 items-center justify-center rounded-2xl bg-black/50 border border-mok-gold/40 text-mok-gold">
+              <svg viewBox="0 0 24 24" className="w-6 h-6" fill="none" stroke="currentColor" strokeWidth="1.5">
+                <path d="M12 4v4m6-2-1 3m4 2-3 1m2 6h-4m-2 4-1-3m-6 3 1-3m-4-2 3-1m-2-6h4m2-4 1 3m3 4a3 3 0 1 1-6 0 3 3 0 0 1 6 0Z" strokeLinecap="round" strokeLinejoin="round"/>
+              </svg>
+            </div>
+            <div>
+              <p className="text-xs uppercase tracking-[0.2em] text-neutral-400">Today&apos;s limit</p>
+              <div className="flex items-end gap-2">
+                <p className="text-3xl font-semibold text-mok-gold">
+                  {availableQuestions ?? '—'}
+                </p>
+                {totalQuota !== null && (
+                  <span className="text-xs text-neutral-400 pb-1">/ {totalQuota}</span>
+                )}
+              </div>
+            </div>
+          </div>
+          <div className="mt-4 flex flex-wrap gap-3 text-xs text-neutral-400">
+            <span className="inline-flex items-center gap-1 rounded-full border border-mok-goldDeep/40 px-3 py-1">
+              Used <strong className="text-neutral-200">{limits ? limits.usedToday : '—'}</strong>
             </span>
-            <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded bg-black/40 border border-mok-goldDeep/40">
-              <span className="text-mok-gold">၀ယ်ယူမှုလက်ကျန်</span>
-              <strong>{limits ? limits.extraQuota : '—'}</strong>
+            <span className="inline-flex items-center gap-1 rounded-full border border-mok-goldDeep/40 px-3 py-1">
+              Base limit <strong className="text-neutral-200">{limits ? limits.dailyLimit : '—'}</strong>
+            </span>
+            <span className="inline-flex items-center gap-1 rounded-full border border-mok-goldDeep/40 px-3 py-1">
+              Bonus <strong className="text-mok-goldLight">{limits ? limits.extraQuota : '—'}</strong>
             </span>
           </div>
+          <p className="mt-3 text-xs text-neutral-400">
+            {availableQuestions !== null
+              ? `You can still ask ${availableQuestions} question${availableQuestions === 1 ? '' : 's'} today.`
+              : 'Fetching your remaining questions...'}
+          </p>
+        </div>
+        <div className="rounded-2xl border border-mok-goldDeep/40 bg-gradient-to-br from-[#050708] via-[#0d0d0d] to-[#120b03] p-4 shadow-[0_10px_40px_rgba(0,0,0,0.4)] flex flex-col gap-3">
+          <div className="flex items-center justify-between">
+            <div>
+              <p className="text-xs uppercase tracking-[0.2em] text-neutral-400">Coins</p>
+              <p className="text-3xl font-semibold text-mok-gold">{coins ?? '—'}</p>
+            </div>
+            <div className="flex h-12 w-12 items-center justify-center rounded-2xl bg-black/60 border border-mok-gold/30 text-mok-gold">
+              <svg viewBox="0 0 24 24" className="w-6 h-6" fill="none" stroke="currentColor" strokeWidth="1.5">
+                <circle cx="12" cy="12" r="9" strokeLinecap="round" strokeLinejoin="round" />
+                <path d="M12 7v10M9 10h6M9 14h6" strokeLinecap="round" strokeLinejoin="round" />
+              </svg>
+            </div>
+          </div>
+          <p className="text-xs text-neutral-400">
+            100 coins = 1 reading. Convert your kindness into more tarot insights.
+          </p>
+          <button
+            onClick={convertCoins}
+            disabled={!coins || coins < 100}
+            className="mt-auto rounded-xl border border-mok-goldDeep/40 bg-black/30 px-4 py-2 text-xs font-semibold uppercase tracking-wide text-mok-gold hover:border-mok-gold disabled:opacity-50"
+          >
+            Exchange 100 coins
+          </button>
+          {coins !== null && coins < 100 && (
+            <p className="text-[11px] text-neutral-500">Need {100 - coins} more coins for the next reading.</p>
+          )}
+        </div>
+      </section>
+      <section className="grid gap-3 items-stretch sm:grid-cols-[1fr_320px]">
+        <div>
           <label className="block mb-1 text-sm text-mok-goldLight">မေးချင်သောမေးခွန်း (မြန်မာ)</label>
           <textarea
             value={question}

@@ -186,6 +186,7 @@ model GoodDeed {
   aiFeedback String
   language   String            @default("my")
   belief     GoodDeedBelief    @default(ATHEIST)
+  points     Int               @default(0)
   createdAt  DateTime          @default(now())
 
   @@index([userId, deedDate])

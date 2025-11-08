@@ -10,6 +10,7 @@ type GoodDeed = {
   aiFeedback: string
   language: string
   belief?: string
+  points?: number
   createdAt: string
 }
 
@@ -30,6 +31,7 @@ export default function GoodnessPage() {
   const [loading, setLoading] = useState(false)
   const [entries, setEntries] = useState<GoodDeed[]>([])
   const [error, setError] = useState<string | null>(null)
+  const [coins, setCoins] = useState<number>(0)
 
   useEffect(() => {
     let active = true
@@ -39,6 +41,7 @@ export default function GoodnessPage() {
         const data = await res.json().catch(()=>({}))
         if (!active) return
         setEntries(data.deeds || [])
+        setCoins(data.coins ?? 0)
       } catch (e: any) {
         if (active) setError(e?.message || 'မိတ်ဆွေ့လုပ်ဆောင်မှုများကို မရရှိနိုင်ပါ')
       }
@@ -55,14 +58,15 @@ export default function GoodnessPage() {
     setLoading(true)
     setError(null)
     try {
-      const res = await fetch('/api/deeds', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ note, deedDate: date, language, belief })
-      })
-      const data = await res.json().catch(()=>({}))
-      if (!res.ok) throw new Error(data?.error || 'မအောင်မြင်သေးပါ')
-      setEntries(prev => [data.deed, ...prev])
+        const res = await fetch('/api/deeds', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ note, deedDate: date, language, belief })
+        })
+        const data = await res.json().catch(()=>({}))
+        if (!res.ok) throw new Error(data?.error || 'မအောင်မြင်သေးပါ')
+        setEntries(prev => [data.deed, ...prev])
+        setCoins(data.coins ?? 0)
       setNote('')
       setDate(today)
     } catch (e: any) {
@@ -86,11 +90,25 @@ export default function GoodnessPage() {
             ? 'When you feel unuseful or low, reviewing your good deeds here provides concrete proof of your positive impact. Our system gives encouraging feedback to remind you of your value, helping you become a better person and encouraging community support. Use this record as a source of strength and inspiration!'
             : 'ဒီနေရာမှာ မှတ်တမ်းတင်ဖို့အတွက် လုပ်လိုက်တဲ့အရာက အကြီးကြီးတွေ ဖြစ်စရာမလိုပါဘူး။ ဥပမာ- "ဒီနေ့ ဒေါသထွက်တော့မလို့ပဲ၊ ဒါပေမဲ့ ကိုယ့်ကိုယ်ကိုယ် ထိန်းလိုက်နိုင်တယ်" ဆိုတာမျိုး၊ ဒါမှမဟုတ် တစ်ယောက်ယောက်ကို ချီးကျူးစကားလေး ပြောလိုက်တာမျိုးလို သေးသေးမွှားမွှား ကောင်းမှုလေးတွေ အကုန်လုံးကို မှတ်ထားလို့ရပါတယ်။ ကိုယ့်ကိုယ်ကို အသုံးမကျဘူးလို့ ခံစားရတဲ့နေ့တွေ၊ စိတ်ဓာတ်ကျတဲ့အခါမျိုးမှာ ဒီမှတ်တမ်းလေးကို ပြန်ဖွင့်ကြည့်လိုက်ပါ။ ဒါတွေအားလုံးက သင်ဘယ်လောက် တန်ဖိုးရှိတဲ့လူတစ်ယောက်လဲ၊ ကောင်းတဲ့အရာတွေ ဘယ်လောက်လုပ်ခဲ့လဲ ဆိုတာကို သက်သေပြပေးနေပါလိမ့်မယ်။ ဒီမှတ်တမ်းလေးတွေက သင့်ကို အမြဲအားပေးပြီး ပိုကောင်းတဲ့လူတစ်ယောက် ဖြစ်လာဖို့ရော၊ ပတ်ဝန်းကျင်ကို ကူညီဖို့ပါ တွန်းအားပေးနေမှာပါ။ ကိုယ့်အတွက် ခွန်အားတွေ ဒီနေရာကနေ လာယူနိုင်ပါတယ်!'}
         </p>
+        <p className="text-xs text-mok-gold/80">
+          {language === 'en'
+            ? 'Each deed also earns up to 50 coins based on its impact—track your positive influence!'
+            : 'လုပ်ခဲ့သမျှ ကောင်းမှုတစ်ခုစီသည် အများဆုံး ကွန်ပွန် ၅၀ (Coins) ရရှိနိုင်ပါသည်။'}
+        </p>
+        <div className="inline-flex items-center gap-2 rounded-full border border-mok-goldDeep/40 bg-black/40 px-3 py-1 text-xs text-mok-goldLight">
+          <svg viewBox="0 0 24 24" className="w-4 h-4" fill="none" stroke="currentColor" strokeWidth="1.5">
+            <circle cx="12" cy="12" r="9" strokeLinecap="round" strokeLinejoin="round" />
+            <path d="M12 7v10M9 10h6M9 14h6" strokeLinecap="round" strokeLinejoin="round" />
+          </svg>
+          <span>Coins: <strong className="text-mok-gold">{coins}</strong></span>
+        </div>
       </header>
 
       <form onSubmit={submit} className="grid gap-4 rounded-2xl border border-mok-goldDeep/30 bg-black/30 p-4">
         <div className="grid gap-2">
-          <label className="text-sm text-mok-goldLight">ကောင်းမှု အကြောင်းအရာ</label>
+          <label className="text-sm text-mok-goldLight">
+            {language === 'en' ? 'Good deed description' : 'ကောင်းမှု အကြောင်းအရာ'}
+          </label>
           <textarea
             value={note}
             onChange={(e) => setNote(e.target.value)}
@@ -145,6 +163,18 @@ export default function GoodnessPage() {
                 <span>{entry.language === 'en' ? 'English' : 'မြန်မာ'}</span>
                 <span>·</span>
                 <span>{beliefLabel(entry.belief)}</span>
+                {typeof entry.points === 'number' && (
+                  <>
+                    <span>·</span>
+                    <span className="inline-flex items-center gap-1 text-mok-goldLight">
+                      <svg viewBox="0 0 24 24" className="w-4 h-4" fill="none" stroke="currentColor" strokeWidth="1.5">
+                        <circle cx="12" cy="12" r="9" strokeLinecap="round" strokeLinejoin="round" />
+                        <path d="M12 7v10M9 10h6M9 14h6" strokeLinecap="round" strokeLinejoin="round" />
+                      </svg>
+                      <strong>{entry.points}</strong>
+                    </span>
+                  </>
+                )}
               </div>
               <p className="text-sm leading-6 text-neutral-100 whitespace-pre-wrap">{entry.note}</p>
               {entry.categories.length > 0 && (
@@ -155,6 +185,7 @@ export default function GoodnessPage() {
                 </div>
               )}
               <div className="rounded-xl border border-mok-gold/20 bg-black/30 p-3 text-sm leading-6 text-neutral-100">
+                <div className="text-xs font-semibold text-mok-goldLight mb-1">{entry.language === 'en' ? 'Acknowledgement' : 'အသိအမှတ်ပြုခြင်း'}</div>
                 {entry.aiFeedback}
               </div>
             </article>

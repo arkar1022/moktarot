@@ -22,6 +22,7 @@ type BeliefKey = 'BUDDHIST' | 'HINDU' | 'CHRISTIAN' | 'ISLAM' | 'ATHEIST'
 type AiResponse = {
   categories: CategoryKey[]
   feedback: string
+  points: number
 }
 
 export async function GET(req: Request) {
@@ -31,7 +32,11 @@ export async function GET(req: Request) {
     where: { userId: auth.uid },
     orderBy: { deedDate: 'desc' }
   })
-  return NextResponse.json({ deeds })
+  const totalPoints = await prisma.goodDeed.aggregate({
+    _sum: { points: true },
+    where: { userId: auth.uid }
+  })
+  return NextResponse.json({ deeds, coins: totalPoints._sum.points ?? 0 })
 }
 
 export async function POST(req: Request) {
@@ -59,10 +64,15 @@ export async function POST(req: Request) {
       categories: aiResult.categories as any,
       aiFeedback: aiResult.feedback,
       language,
-      belief
+      belief,
+      points: aiResult.points
     }
   })
-  return NextResponse.json({ deed })
+  const totalPoints = await prisma.goodDeed.aggregate({
+    _sum: { points: true },
+    where: { userId: auth.uid }
+  })
+  return NextResponse.json({ deed, coins: totalPoints._sum.points ?? 0 })
 }
 
 async function buildAiInsight(note: string, language: 'my' | 'en', belief: BeliefKey): Promise<AiResponse> {
@@ -79,7 +89,8 @@ ${CATEGORY_KEYS.join(', ')}
 Return JSON ONLY:
 {
   "categories": ["CATEGORY1","CATEGORY2"],
-  "feedback": "Text in ${language === 'en' ? 'English' : 'Myanmar (Burmese)'} encouraging user. Include a short ${belief === 'ATHEIST' ? 'humanitarian or philosophical reflection' : 'reference or teaching from ${beliefText} (mention the scripture/teaching name, paraphrase without verse numbers)'} supporting their action. Explain positive impact for themselves and the community helped."
+  "feedback": "Text in ${language === 'en' ? 'English' : 'Myanmar (Burmese)'} encouraging user. Include a short ${belief === 'ATHEIST' ? 'humanitarian or philosophical reflection' : 'reference or teaching from ${beliefText} (mention the scripture/teaching name, paraphrase without verse numbers)'} supporting their action. Explain positive impact for themselves and the community helped.",
+  "points": INTEGER between 0 and 50 based on how impactful the deed is for self + community
 }
 
 Guidelines:
@@ -96,15 +107,17 @@ Guidelines:
       const cats = Array.isArray(parsed.categories)
         ? parsed.categories.map((c: string) => c?.toUpperCase()).filter((c: string): c is CategoryKey => CATEGORY_KEYS.includes(c as any))
         : []
+      const points = clampPoints(parsed.points)
       if (parsed.feedback && cats.length > 0) {
-        return { categories: cats as CategoryKey[], feedback: String(parsed.feedback).trim() }
+        return { categories: cats as CategoryKey[], feedback: String(parsed.feedback).trim(), points }
       }
     }
   }
   logError('GOOD_DEED_AI_FALLBACK', { note })
   return {
     categories: ['KINDNESS'],
-    feedback: fallbackFeedback(language, belief)
+    feedback: fallbackFeedback(language, belief),
+    points: 15
   }
 }
 
@@ -152,8 +165,13 @@ function fallbackFeedback(language: 'my'|'en', belief: BeliefKey) {
       my: 'ငွေကြေးကို အလဟထုတ်မသုံးစွဲရန် ဆုံးဖြတ်မှုသည် သင်၏ တန်ဖိုးထားမှုတန်ခိုးကို ပြသနေပါသည်။ သိမ်မွေ့စွာ ထိန်းသိမ်းသည့်အခါတိုင်း သင့် အနာဂတ် ရည်ရွယ်ချက်များကို အထောက်အကူပြု၍ လိုအပ်သူများအား အကူအညီပေးနိုင်သော အခွင့်အလမ်းများ ရရှိစေပါသည်။ ဤသဘောထားကို ဆက်လက် ကြည်ညိုစေပါ — သင့် စရိုက်ကို ပိုမိုေပြာချင်စေသလို အသိုင်းအဝိုင်းကိုလည်း ပြင်းထန်စေပါသည်။'
     }
   }
-  const entry = map[belief]
-  return language === 'en' ? entry.en : entry.my
+  return language === 'en' ? map[belief].en : map[belief].my
+}
+
+function clampPoints(val: any) {
+  const num = Number(val)
+  if (!Number.isFinite(num)) return 15
+  return Math.max(0, Math.min(50, Math.round(num)))
 }
 
 async function askGemini(prompt: string) {
