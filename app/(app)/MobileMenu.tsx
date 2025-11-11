@@ -1,13 +1,45 @@
-"use client"
+'use client'
 
 import { useEffect, useState } from 'react'
 import Image from 'next/image'
 
-export default function MobileMenu() {
+type Lang = 'my' | 'en'
+
+const TEXT: Record<Lang, {
+  profile: string
+  profileSubtitle: string
+  zodiac: string
+  guidance: string
+  history: string
+  goodness: string
+  logout: string
+}> = {
+  my: {
+    profile: 'ပရိုဖိုင်း',
+    profileSubtitle: 'ပရိုဖိုင်ဆီ သွားရန်',
+    zodiac: 'ရာသီခွင်',
+    guidance: '၀ိညာဉ်အကြံဉာဏ်',
+    history: 'မှတ်တမ်း',
+    goodness: 'ကောင်းမှု မှတ်တမ်း',
+    logout: 'ထွက်မည်',
+  },
+  en: {
+    profile: 'Profile',
+    profileSubtitle: 'Go to profile',
+    zodiac: 'Zodiac',
+    guidance: 'Spiritual Guidance',
+    history: 'History',
+    goodness: 'Good Deeds',
+    logout: 'Sign out',
+  }
+}
+
+export default function MobileMenu({ lang }: { lang: Lang }) {
   const [open, setOpen] = useState(false)
   const [name, setName] = useState<string>('')
   const [avatar, setAvatar] = useState<string>('/avatars/vector8.png')
   const [role, setRole] = useState<'USER'|'ADMIN'|'UNKNOWN'>('UNKNOWN')
+  const copy = TEXT[lang]
 
   useEffect(() => {
     let alive = true
@@ -51,18 +83,18 @@ export default function MobileMenu() {
             <button onClick={()=>{ window.location.href='/app/profile' }} className="w-full text-left flex items-center gap-2 p-2 rounded-md hover:bg-black/40">
               <Image src={avatar} alt="avatar" width={28} height={28} className="rounded-full border border-mok-goldDeep/40" />
               <div>
-                <div className="text-sm font-medium">{name || 'ပရိုဖိုင်း'}</div>
-                <div className="text-xs text-neutral-400">ပရိုဖိုင်ဆီ သွားရန်</div>
+                <div className="text-sm font-medium">{name || copy.profile}</div>
+                <div className="text-xs text-neutral-400">{copy.profileSubtitle}</div>
               </div>
             </button>
-            <a href="/app/zodiac" className="block p-2 text-sm rounded-md hover:bg-black/40">ရာသီခွင်</a>
-            <a href="/app/guidance" className="block p-2 text-sm rounded-md hover:bg-black/40">၀ိညာဉ်အကြံဉာဏ်</a>
-            <a href="/app/history" className="block p-2 text-sm rounded-md hover:bg-black/40">မှတ်တမ်း</a>
-            <a href="/app/goodness" className="block p-2 text-sm rounded-md hover:bg-black/40">ကောင်းမှု မှတ်တမ်း</a>
+            <a href="/app/zodiac" className="block p-2 text-sm rounded-md hover:bg-black/40">{copy.zodiac}</a>
+            <a href="/app/guidance" className="block p-2 text-sm rounded-md hover:bg-black/40">{copy.guidance}</a>
+            <a href="/app/history" className="block p-2 text-sm rounded-md hover:bg-black/40">{copy.history}</a>
+            <a href="/app/goodness" className="block p-2 text-sm rounded-md hover:bg-black/40">{copy.goodness}</a>
             {role === 'ADMIN' && (
               <a href="/adminmok" className="block p-2 text-sm rounded-md hover:bg-black/40">Admin</a>
             )}
-            <button onClick={signOut} className="mt-1 w-full p-2 text-left text-sm rounded-md hover:bg-black/40">ထွက်မည်</button>
+            <button onClick={signOut} className="mt-1 w-full p-2 text-left text-sm rounded-md hover:bg-black/40">{copy.logout}</button>
           </div>
         </>
       )}

@@ -2,20 +2,39 @@ import fs from 'fs'
 import path from 'path'
 import Image from 'next/image'
 import Link from 'next/link'
+import { cookies } from 'next/headers'
 
-const ZODIAC_MM: Record<string, string> = {
-  ARIES: 'မိဿ',
-  TAURUS: 'ပြိဿ',
-  GEMINI: 'မေထုန်',
-  CANCER: 'ကရကဋ်',
-  LEO: 'သိဟ်',
-  VIRGO: 'ကန်',
-  LIBRA: 'တူ',
-  SCORPIO: 'ဗြိစ္ဆာ',
-  SAGITTARIUS: 'ဓနု',
-  CAPRICORN: 'မကာရ',
-  AQUARIUS: 'ကုံ',
-  PISCES: 'မိန်',
+type Lang = 'my' | 'en'
+
+const ZODIAC_NAMES: Record<Lang, Record<string, string>> = {
+  my: {
+    ARIES: 'မိဿ',
+    TAURUS: 'ပြိဿ',
+    GEMINI: 'မေထုန်',
+    CANCER: 'ကရကဋ်',
+    LEO: 'သိဟ်',
+    VIRGO: 'ကန်',
+    LIBRA: 'တူ',
+    SCORPIO: 'ဗြိစ္ဆာ',
+    SAGITTARIUS: 'ဓနု',
+    CAPRICORN: 'မကာရ',
+    AQUARIUS: 'ကုံ',
+    PISCES: 'မိန်',
+  },
+  en: {
+    ARIES: 'Aries',
+    TAURUS: 'Taurus',
+    GEMINI: 'Gemini',
+    CANCER: 'Cancer',
+    LEO: 'Leo',
+    VIRGO: 'Virgo',
+    LIBRA: 'Libra',
+    SCORPIO: 'Scorpio',
+    SAGITTARIUS: 'Sagittarius',
+    CAPRICORN: 'Capricorn',
+    AQUARIUS: 'Aquarius',
+    PISCES: 'Pisces',
+  }
 }
 
 const ZODIAC_DATES: Record<string, string> = {
@@ -36,6 +55,7 @@ const ZODIAC_DATES: Record<string, string> = {
 export const dynamic = 'force-dynamic'
 
 export default async function ZodiacPage() {
+  const lang: Lang = cookies().get('mok_lang')?.value === 'en' ? 'en' : 'my'
   const dir = path.join(process.cwd(), 'public', 'zodiac')
   let files: string[] = []
   try {
@@ -59,11 +79,11 @@ export default async function ZodiacPage() {
         <span className="hidden sm:inline text-xs text-neutral-300">နောက်သို့</span>
       </Link>
       <div className='sm:pt-10 pt-5'>
-        <h2 className="md:mt-[30px] sm:mt-[0px] gold-gradient text-lg font-semibold">ရာသီခွင်</h2>
-        <p className="text-xs text-neutral-400">ရာသီစတင်များကို ရွေးချယ်ကြည့်ရှုပါ</p>
+        <h2 className="md:mt-[30px] sm:mt-[0px] gold-gradient text-lg font-semibold">{lang === 'en' ? 'Zodiac Reading' : 'ရာသီခွင်'}</h2>
+        <p className="text-xs text-neutral-400">{lang === 'en' ? 'Pick a sign to view today’s insight.' : 'ရာသီစတင်များကို ရွေးချယ်ကြည့်ရှုပါ'}</p>
       </div>
       {files.length === 0 ? (
-        <p className="text-sm text-neutral-400">Icon များမတွေ့ရှိပါ။ public/zodiac ထဲတွင် ထည့်ပါ။</p>
+        <p className="text-sm text-neutral-400">{lang === 'en' ? 'No zodiac icons found. Add images under public/zodiac.' : 'Icon များမတွေ့ရှိပါ။ public/zodiac ထဲတွင် ထည့်ပါ။'}</p>
       ) : (
         <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-6 gap-4">
           {files.map((f) => {
@@ -82,7 +102,9 @@ export default async function ZodiacPage() {
                   <Image src={`/zodiac/${f}`} alt={displayName(f)} width={88} height={88} className="object-contain drop-shadow-[0_0_10px_rgba(212,175,55,0.2)]" />
                 </div>
                 <div className="mt-3 pb-2">
-                  <div className="text-sm pb-2 leading-5 font-medium gold-gradient break-words">{ZODIAC_MM[code] || displayName(f)}</div>
+                  <div className="text-sm pb-2 leading-5 font-medium gold-gradient break-words">
+                    {ZODIAC_NAMES[lang][code] || displayName(f)}
+                  </div>
                   <div className="text-[11px] text-neutral-400">{ZODIAC_DATES[code] || ''}</div>
                 </div>
               </Link>

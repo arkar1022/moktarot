@@ -4,14 +4,45 @@ import dynamic from 'next/dynamic'
 import MobileMenu from './MobileMenu'
 import { cookies } from 'next/headers'
 import { verifyToken } from '@/lib/auth'
+import NavLink from './NavLink'
+
+const NAV_ITEMS = [
+  { href: '/app/dashboard', key: 'dashboard' },
+  { href: '/app/history', key: 'history' },
+  { href: '/app/guidance', key: 'guidance' },
+  { href: '/app/zodiac', key: 'zodiac' },
+  { href: '/app/goodness', key: 'goodness' },
+] as const
+
+const NAV_COPY = {
+  my: {
+    dashboard: 'ပင်မ',
+    history: 'မှတ်တမ်း',
+    guidance: '၀ိညာဉ်အကြံဉာဏ်',
+    zodiac: 'ရာသီခွင်',
+    goodness: 'ကောင်းမှု မှတ်တမ်း',
+    profile: 'ပရိုဖိုင်း',
+  },
+  en: {
+    dashboard: 'Home',
+    history: 'History',
+    guidance: 'Spiritual Guidance',
+    zodiac: 'Zodiac',
+    goodness: 'Good Deeds',
+    profile: 'Profile',
+  }
+} as const
 
 const UserAvatar = dynamic(() => import('./UserAvatar'), { ssr: false })
 const AuthGuard = dynamic(() => import('./AuthGuard'), { ssr: false })
 
 export default function AppLayout({ children }: { children: React.ReactNode }) {
-  const token = cookies().get('mok_auth')?.value
+  const cookieStore = cookies()
+  const lang = cookieStore.get('mok_lang')?.value === 'en' ? 'en' : 'my'
+  const token = cookieStore.get('mok_auth')?.value
   const payload = token ? verifyToken(token) : null
   const isAdmin = payload?.role === 'ADMIN'
+  const copy = NAV_COPY[lang]
   return (
     <div className="min-h-screen">
       <AuthGuard />
@@ -21,18 +52,16 @@ export default function AppLayout({ children }: { children: React.ReactNode }) {
             <Image src="/logo.webp" width={36} height={36} alt="MOK logo" />
             <span className="gold-gradient font-semibold">MOK Tarot</span>
           </div>
-          <div className="hidden sm:flex items-center gap-4 text-sm">
-            <Link href="/app/dashboard" className="hover:text-mok-gold">ပင်မ</Link>
-            <Link href="/app/history" className="hover:text-mok-gold">မှတ်တမ်း</Link>
-            <Link href="/app/guidance" className="hover:text-mok-gold">၀ိညာဉ်အကြံဉာဏ်</Link>
-            <Link href="/app/zodiac" className="hover:text-mok-gold">ရာသီခွင်</Link>
-            <Link href="/app/goodness" className="hover:text-mok-gold">ကောင်းမှု မှတ်တမ်း</Link>
-            {isAdmin && <Link href="/adminmok" className="hover:text-mok-gold">Admin</Link>}
-            <Link href="/app/profile" className="hover:text-mok-gold">ပရိုဖိုင်း</Link>
+          <div className="hidden sm:flex items-center gap-2 text-sm">
+            {NAV_ITEMS.map(item => (
+              <NavLink key={item.href} href={item.href}>{copy[item.key]}</NavLink>
+            ))}
+            {isAdmin && <NavLink href="/adminmok">Admin</NavLink>}
+            <NavLink href="/app/profile">{copy.profile}</NavLink>
             <UserAvatar />
           </div>
           <div className="sm:hidden">
-            <MobileMenu />
+            <MobileMenu lang={lang} />
           </div>
         </nav>
       </header>
