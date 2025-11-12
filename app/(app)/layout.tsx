@@ -11,6 +11,7 @@ const NAV_ITEMS = [
   { href: '/app/history', key: 'history' },
   { href: '/app/guidance', key: 'guidance' },
   { href: '/app/zodiac', key: 'zodiac' },
+  { href: '/app/natal', key: 'natal' },
   { href: '/app/goodness', key: 'goodness' },
 ] as const
 
@@ -20,6 +21,7 @@ const NAV_COPY = {
     history: 'မှတ်တမ်း',
     guidance: '၀ိညာဉ်အကြံဉာဏ်',
     zodiac: 'ရာသီခွင်',
+    natal: 'မွေးဇာတာ',
     goodness: 'ကောင်းမှု မှတ်တမ်း',
     profile: 'ပရိုဖိုင်း',
   },
@@ -28,6 +30,7 @@ const NAV_COPY = {
     history: 'History',
     guidance: 'Spiritual Guidance',
     zodiac: 'Zodiac',
+    natal: 'Natal Chart',
     goodness: 'Good Deeds',
     profile: 'Profile',
   }

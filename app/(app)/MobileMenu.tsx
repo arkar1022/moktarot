@@ -9,6 +9,7 @@ const TEXT: Record<Lang, {
   profile: string
   profileSubtitle: string
   zodiac: string
+  natal: string
   guidance: string
   history: string
   goodness: string
@@ -18,6 +19,7 @@ const TEXT: Record<Lang, {
     profile: 'ပရိုဖိုင်း',
     profileSubtitle: 'ပရိုဖိုင်ဆီ သွားရန်',
     zodiac: 'ရာသီခွင်',
+    natal: 'မွေးဇာတာ',
     guidance: '၀ိညာဉ်အကြံဉာဏ်',
     history: 'မှတ်တမ်း',
     goodness: 'ကောင်းမှု မှတ်တမ်း',
@@ -27,6 +29,7 @@ const TEXT: Record<Lang, {
     profile: 'Profile',
     profileSubtitle: 'Go to profile',
     zodiac: 'Zodiac',
+    natal: 'Natal Chart',
     guidance: 'Spiritual Guidance',
     history: 'History',
     goodness: 'Good Deeds',
@@ -88,6 +91,7 @@ export default function MobileMenu({ lang }: { lang: Lang }) {
               </div>
             </button>
             <a href="/app/zodiac" className="block p-2 text-sm rounded-md hover:bg-black/40">{copy.zodiac}</a>
+            <a href="/app/natal" className="block p-2 text-sm rounded-md hover:bg-black/40">{copy.natal}</a>
             <a href="/app/guidance" className="block p-2 text-sm rounded-md hover:bg-black/40">{copy.guidance}</a>
             <a href="/app/history" className="block p-2 text-sm rounded-md hover:bg-black/40">{copy.history}</a>
             <a href="/app/goodness" className="block p-2 text-sm rounded-md hover:bg-black/40">{copy.goodness}</a>
