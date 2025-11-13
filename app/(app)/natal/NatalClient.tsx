@@ -6,6 +6,7 @@ import NatalChartWheel, { PlanetGlyph, HouseLine } from './NatalChartWheel'
 import { NATAL_LOCATIONS } from '@/lib/natal/locations'
 
 type Lang = 'en' | 'my'
+type Mode = 'self' | 'other' | 'couple'
 
 type NatalResponse = {
   metadata: {
@@ -84,17 +85,63 @@ type ReadingSummary = {
 
 type ReadingPhase = 'idle' | 'planets' | 'houses' | 'done'
 
+type RelationshipTopic = {
+  id: string
+  title: string
+  focus: string
+  message: string
+  keywords?: string[]
+}
+
+type CoupleReadingPhase = 'idle' | 'loading' | 'done'
+
+type ReadingState = {
+  planetInsights: ReadingTopic[]
+  houseInsights: ReadingTopic[]
+  summary: ReadingSummary | null
+  status: ReadingPhase
+  error: string | null
+}
+
+type CoupleResultState = {
+  partnerA: NatalResponse
+  partnerB: NatalResponse
+}
+
+type PersonKey = 'self' | 'other'
+type CoupleKey = 'partnerA' | 'partnerB'
+
+const PARTNER_KEYS: CoupleKey[] = ['partnerA', 'partnerB']
+
+type PersonFormState = {
+  label: string
+  birthDate: string
+  birthTime: string
+  tzOffsetMinutes: string
+  latitude: string
+  longitude: string
+  houseSystem: string
+  country: string
+  state: string
+  city: string
+  timezoneLocked: boolean
+  gender: 'female' | 'male' | 'nonbinary'
+}
+
+type CoupleFormState = PersonFormState
+
 const LocationPickerMap = dynamic(() => import('./LocationPickerMap'), { ssr: false })
 
 const HOUSE_OPTIONS = [
   { value: 'P', en: 'Placidus (default)', my: 'Placidus (မူလ)' },
   { value: 'K', en: 'Koch', my: 'Koch' },
   { value: 'O', en: 'Porphyry', my: 'Porphyry' },
-  { value: 'W', en: 'Whole Sign', my: 'မွေးရာရာသီထောင့် (Whole Sign)' },
-  { value: 'E', en: 'Equal', my: 'အလုံးစုံညီမျှ (Equal)' }
+  { value: 'W', en: 'Whole Sign', my: 'Whole Sign)' },
+  { value: 'E', en: 'Equal', my: 'Equal' }
 ]
 
 const COPY: Record<Lang, {
+  tabs: Record<Mode, { title: string; description: string }>
   title: string
   intro: string
   form: {
@@ -144,8 +191,25 @@ const COPY: Record<Lang, {
       done: string
     }
   }
+  relationship: {
+    title: string
+    subtitle: string
+    topicsTitle: string
+    summaryTitle: string
+    status: Record<CoupleReadingPhase, string>
+    genders: {
+      label: string
+      options: Record<CoupleFormState['gender'], string>
+    }
+    partnerLabels: { first: string; second: string }
+  }
 }> = {
   en: {
+    tabs: {
+      self: { title: 'For yourself', description: 'Personal blueprint, planet-by-planet reflections, and AI insight just for you.' },
+      other: { title: 'For another person', description: 'Run someone else’s chart to learn their vibe, strengths, and how to communicate with them.' },
+      couple: { title: 'Couple sync', description: 'Blend two charts, add genders, and let AI paint the chemistry, strengths, and growth edges.' }
+    },
     title: 'Natal Chart',
     intro: 'Enter birth details to calculate planet positions, signs, and houses. Latitude/longitude use decimal degrees (east positive, west negative).',
     form: {
@@ -194,15 +258,40 @@ const COPY: Record<Lang, {
         houses: 'Mapping houses & summary...',
         done: 'Completed'
       }
+    },
+    relationship: {
+      title: 'Compatibility Compass',
+      subtitle: 'Two charts, one honest map. Love, communication, and real-world action steps.',
+      topicsTitle: 'Relationship Topics',
+      summaryTitle: 'Unified Summary',
+      status: {
+        idle: 'Awaiting both charts',
+        loading: 'Blending both charts...',
+        done: 'Compatibility written'
+      },
+      genders: {
+        label: 'Gender',
+        options: {
+          female: 'Female',
+          male: 'Male',
+          nonbinary: 'Non-binary'
+        }
+      },
+      partnerLabels: { first: 'Person A', second: 'Person B' }
     }
   },
   my: {
+    tabs: {
+      self: { title: 'ကိုယ်တိုင်', description: 'ကိုယ်ပိုင် ဇာတာခွင်၊ ဂြိုလ်အကြောင်းအရာများကို ကြည့်ရှုနိုင်ပါတယ်။' },
+      other: { title: 'အခြားသူ', description: 'အခြားလူတစ်ဦး၏ ဇာတာကို တွက်ချက်ကာ သူ့ရဲ့ အကျင့်စရိုက်၊ ကြိုက်နှစ်သက်မှု အားနည်းချက်များကို သိနိုင်ပါတယ်။' },
+      couple: { title: 'စုံတွဲဇာတာ', description: 'လူနှစ်ဦး၏ မွေးသက်သွင်းချက်နှင့် ကျား/မ ရွေးချယ်မှုကို ထည့်ပြီး အချစ်ရေး၊ အားသာချက်များ ကိုသိနိုင်ပါတယ်။' }
+    },
     title: 'မွေးဇာတာ',
     intro: 'မွေးနေ့၊ မွေးချိန်၊ အချိန်ဇုန်နှင့် တည်နေရာကို ထည့်သွင်းပြီး ဂြိုလ်တည်နေရာများနှင့် အိမ်များကို တွက်ဆပါ။ လတီ၊ လောင်ဂျီကို ဒဿမဒီဂရီဖြင့် ထည့်သွင်းပါ (အရှေ့ +, အနောက် -).',
     form: {
       name: 'အမည် (မဖြည့်လည်းရ)',
       birthDate: 'မွေးသက္ကရာဇ်',
-      birthTime: 'မွေးချိန်',
+      birthTime: 'မွေးချိန်', 
       timeHint: 'ဤချိန်သည် သင်ရွေးသတ်မှတ်ထားသော တည်နေရာ၏ မိမိဒေသအချိန်ဖြစ်သည်။',
       tzLabel: 'UTC ကွာဟချက် (နာရီ)',
       tzHint: 'ဥပမာ - +6.5 ဆိုUTC+06:30',
@@ -245,6 +334,26 @@ const COPY: Record<Lang, {
         houses: 'အိမ်များနှင့် အနှုတ်ချုပ် ဆက်ရေးနေသည်...',
         done: 'ပြီးဆုံးပါပြီ'
       }
+    },
+    relationship: {
+      title: 'အချစ်လိုက်ဖက်မှု ရှုထောင့်',
+      subtitle: 'ဇာတာနှစ်ခုကို ပေါင်းစပ်ပြီး ချစ်ရေး၊ ဆက်ဆံရေးနှင့် လက်တွေ့အကြံများကို ရယူပါ။',
+      topicsTitle: 'ဆက်ဆံရေးခေါင်းစဉ်များ',
+      summaryTitle: 'စုစည်းသရုပ်ခွဲ',
+      status: {
+        idle: 'ဇာတာနှစ်ခု မပြည့်သေး',
+        loading: 'ဇာတာနှစ်ခုကို ပေါင်းစပ်နေသည်...',
+        done: 'လိုက်ဖက်မှု ရေးသားပြီး'
+      },
+      genders: {
+        label: 'ကျား/မ',
+        options: {
+          female: 'မ',
+          male: 'ယောကျ်ား',
+          nonbinary: 'အမျိုးအစားမသတ်မှတ်'
+        }
+      },
+      partnerLabels: { first: 'လူ A', second: 'လူ B' }
     }
   }
 }
@@ -265,6 +374,28 @@ const PLANET_GLYPHS: Record<string, string> = {
 }
 
 const DEGREE_SYMBOL = String.fromCharCode(176)
+
+const MODE_TABS: Array<{ id: Mode; icon: string }> = [
+  { id: 'self', icon: '☀︎' },
+  { id: 'other', icon: '☾' },
+  { id: 'couple', icon: '∞' }
+]
+
+const GENDER_OPTIONS: Array<CoupleFormState['gender']> = ['female','male','nonbinary']
+const PERSON_GENDER_OPTIONS: Array<PersonFormState['gender']> = ['female','male','nonbinary']
+const COUPLE_SUBMIT_LABEL: Record<Lang, string> = {
+  en: 'Generate Couple Reading',
+  my: 'စုံတွဲတွက်မည်'
+}
+
+const DEFAULT_LOCATION = NATAL_LOCATIONS[0] || {
+  country: '',
+  state: '',
+  city: '',
+  latitude: 0,
+  longitude: 0,
+  tzOffsetHours: 0
+}
 
 function formatDMS({ deg, min, sec }: { deg: number; min: number; sec: number }) {
   return `${deg}${DEGREE_SYMBOL} ${String(min).padStart(2, '0')}' ${String(sec).padStart(2, '0')}`
@@ -292,35 +423,540 @@ const defaultOffsetHours = (() => {
   return -new Date().getTimezoneOffset() / 60
 })()
 
+const createPersonForm = (gender: PersonFormState['gender'] = 'female'): PersonFormState => ({
+  label: '',
+  birthDate: '1995-01-01',
+  birthTime: '12:00',
+  tzOffsetMinutes: (DEFAULT_LOCATION.tzOffsetHours || 6.5).toString(),
+  latitude: DEFAULT_LOCATION.latitude.toFixed(4),
+  longitude: DEFAULT_LOCATION.longitude.toFixed(4),
+  houseSystem: 'P',
+  country: DEFAULT_LOCATION.country,
+  state: DEFAULT_LOCATION.state,
+  city: DEFAULT_LOCATION.city,
+  timezoneLocked: false,
+  gender
+})
+
+const createCoupleForm = (label: string, gender: CoupleFormState['gender']): CoupleFormState => ({
+  ...createPersonForm(gender),
+  label,
+  gender
+})
+
+function getStateOptions(country: string) {
+  if (!country) return []
+  return Array.from(new Set(
+    NATAL_LOCATIONS.filter(loc => loc.country === country).map(loc => loc.state)
+  )).sort()
+}
+
+function getCityOptions(country: string, state: string) {
+  if (!country || !state) return []
+  return Array.from(new Set(
+    NATAL_LOCATIONS
+      .filter(loc => loc.country === country && loc.state === state)
+      .map(loc => loc.city)
+  )).sort()
+}
+
+function findLocationMatch(form: PersonFormState | CoupleFormState) {
+  if (!form.country || !form.state || !form.city) return null
+  return NATAL_LOCATIONS.find(loc =>
+    loc.country === form.country &&
+    loc.state === form.state &&
+    loc.city === form.city
+  ) || null
+}
+
+function cascadeLocation<T extends PersonFormState>(form: T, field: 'country' | 'state' | 'city', value: string): T {
+  if (field === 'country') {
+    const states = getStateOptions(value)
+    const nextState = states[0] || ''
+    const cities = getCityOptions(value, nextState)
+    const nextCity = cities[0] || ''
+    return { ...form, country: value, state: nextState, city: nextCity }
+  }
+  if (field === 'state') {
+    const cities = getCityOptions(form.country, value)
+    return { ...form, state: value, city: cities[0] || '' }
+  }
+  return { ...form, city: value }
+}
+
 export default function NatalClient({ initialLang }: { initialLang: Lang }) {
   const [lang, setLang] = useState<Lang>(initialLang)
   const copy = useMemo(() => COPY[lang], [lang])
-  const [form, setForm] = useState({
-    label: '',
-    birthDate: '1995-01-01',
-    birthTime: '12:00',
-    tzOffsetMinutes: '6.5',
-    latitude: '16.8409',
-    longitude: '96.1735',
-    houseSystem: 'P'
+  const [mode, setMode] = useState<Mode>('self')
+  const [personForms, setPersonForms] = useState<{ self: PersonFormState; other: PersonFormState }>(() => ({
+    self: createPersonForm('nonbinary'),
+    other: createPersonForm('female')
+  }))
+  const [coupleForms, setCoupleForms] = useState<{ partnerA: CoupleFormState; partnerB: CoupleFormState }>(() => ({
+    partnerA: createCoupleForm(copy.relationship.partnerLabels.first, 'female'),
+    partnerB: createCoupleForm(copy.relationship.partnerLabels.second, 'male')
+  }))
+  const [singleResults, setSingleResults] = useState<{ self: NatalResponse | null; other: NatalResponse | null }>({ self: null, other: null })
+  const [singleLoading, setSingleLoading] = useState<{ self: boolean; other: boolean }>({ self: false, other: false })
+  const [singleErrors, setSingleErrors] = useState<{ self: string | null; other: string | null }>({ self: null, other: null })
+  const [submittedLabels, setSubmittedLabels] = useState<{ self: string; other: string }>({ self: '', other: '' })
+  const [submittedGenders, setSubmittedGenders] = useState<{ self: PersonFormState['gender']; other: PersonFormState['gender'] }>({
+    self: 'nonbinary',
+    other: 'female'
   })
-  const [result, setResult] = useState<NatalResponse | null>(null)
-  const [loading, setLoading] = useState(false)
-  const [error, setError] = useState<string | null>(null)
-  const [submittedLabel, setSubmittedLabel] = useState('')
-  const [planetInsights, setPlanetInsights] = useState<ReadingTopic[]>([])
-  const [houseInsights, setHouseInsights] = useState<ReadingTopic[]>([])
-  const [readingSummary, setReadingSummary] = useState<ReadingSummary | null>(null)
-  const [readingStatus, setReadingStatus] = useState<ReadingPhase>('idle')
-  const [readingError, setReadingError] = useState<string | null>(null)
-  const [selectedCountry, setSelectedCountry] = useState('')
-  const [selectedState, setSelectedState] = useState('')
-  const [selectedCity, setSelectedCity] = useState('')
-  const [timezoneLocked, setTimezoneLocked] = useState(false)
+  const [readingStates, setReadingStates] = useState<{ self: ReadingState; other: ReadingState }>(() => ({
+    self: { planetInsights: [], houseInsights: [], summary: null, status: 'idle', error: null },
+    other: { planetInsights: [], houseInsights: [], summary: null, status: 'idle', error: null }
+  }))
+  const [coupleResult, setCoupleResult] = useState<CoupleResultState | null>(null)
+  const [coupleLoading, setCoupleLoading] = useState(false)
+  const [coupleError, setCoupleError] = useState<string | null>(null)
+  const [relationshipTopics, setRelationshipTopics] = useState<RelationshipTopic[]>([])
+  const [relationshipSummary, setRelationshipSummary] = useState<ReadingSummary | null>(null)
+  const [relationshipStatus, setRelationshipStatus] = useState<CoupleReadingPhase>('idle')
+  const [relationshipError, setRelationshipError] = useState<string | null>(null)
+  const [relationshipSource, setRelationshipSource] = useState<'ai' | 'fallback' | null>(null)
+  const [couplePayloadMeta, setCouplePayloadMeta] = useState<{
+    partnerA: { label: string; gender: CoupleFormState['gender'] }
+    partnerB: { label: string; gender: CoupleFormState['gender'] }
+  }>({
+    partnerA: { label: copy.relationship.partnerLabels.first, gender: 'female' },
+    partnerB: { label: copy.relationship.partnerLabels.second, gender: 'male' }
+  })
 
   const countryOptions = useMemo(() => {
     return Array.from(new Set(NATAL_LOCATIONS.map(loc => loc.country))).sort()
   }, [])
+
+  const updatePersonFormState = (target: PersonKey, updater: (prev: PersonFormState) => PersonFormState) => {
+    setPersonForms(prev => ({ ...prev, [target]: updater(prev[target]) }))
+  }
+
+  const updateCoupleFormState = (target: CoupleKey, updater: (prev: CoupleFormState) => CoupleFormState) => {
+    setCoupleForms(prev => ({ ...prev, [target]: updater(prev[target]) }))
+  }
+
+  function handlePersonFieldChange(target: PersonKey, field: keyof PersonFormState, value: string) {
+    updatePersonFormState(target, prev => {
+      if (field === 'country' || field === 'state' || field === 'city') {
+        return cascadeLocation(prev, field, value)
+      }
+      if (field === 'gender') {
+        return { ...prev, gender: value as PersonFormState['gender'] }
+      }
+      if (field === 'tzOffsetMinutes' || field === 'latitude' || field === 'longitude') {
+        return { ...prev, [field]: value, timezoneLocked: false }
+      }
+      return { ...prev, [field]: value }
+    })
+  }
+
+  function handleCoupleFieldChange(target: CoupleKey, field: keyof CoupleFormState, value: string) {
+    updateCoupleFormState(target, prev => {
+      if (field === 'country' || field === 'state' || field === 'city') {
+        return cascadeLocation(prev, field as any, value) as CoupleFormState
+      }
+      if (field === 'gender') {
+        return { ...prev, gender: value as CoupleFormState['gender'] }
+      }
+      if (field === 'tzOffsetMinutes' || field === 'latitude' || field === 'longitude') {
+        return { ...prev, [field]: value, timezoneLocked: false }
+      }
+      return { ...prev, [field]: value }
+    })
+  }
+
+  function handleMapUpdate(target: PersonKey | CoupleKey, lat: number, lon: number) {
+    const updater = (prev: PersonFormState | CoupleFormState) => ({
+      ...prev,
+      latitude: lat.toFixed(4),
+      longitude: lon.toFixed(4),
+      timezoneLocked: false
+    })
+    if (target === 'self' || target === 'other') {
+      updatePersonFormState(target, prev => updater(prev) as PersonFormState)
+    } else {
+      updateCoupleFormState(target, prev => updater(prev) as CoupleFormState)
+    }
+  }
+
+  function applyPresetLocationFor(target: PersonKey | CoupleKey) {
+    const form = target === 'self' || target === 'other' ? personForms[target] : coupleForms[target]
+    const preset = findLocationMatch(form)
+    if (!preset) return
+    const updater = (prev: PersonFormState | CoupleFormState) => ({
+      ...prev,
+      latitude: preset.latitude.toFixed(4),
+      longitude: preset.longitude.toFixed(4),
+      tzOffsetMinutes: preset.tzOffsetHours.toString(),
+      timezoneLocked: true
+    })
+    if (target === 'self' || target === 'other') {
+      updatePersonFormState(target, prev => updater(prev) as PersonFormState)
+    } else {
+      updateCoupleFormState(target, prev => updater(prev) as CoupleFormState)
+    }
+  }
+
+  const timezoneNote = (form: PersonFormState | CoupleFormState) =>
+    form.timezoneLocked
+      ? copy.tzAutoNote.replace('{tz}', formatOffsetDisplay(form.tzOffsetMinutes))
+      : copy.form.tzHint
+
+  const presetNotice = (entry: ReturnType<typeof findLocationMatch>) =>
+    entry ? copy.helperDropdown.notice.replace('{tz}', formatOffsetHours(entry.tzOffsetHours)) : ''
+
+  const activePersonKey: PersonKey = mode === 'self' ? 'self' : 'other'
+  const activeForm = personForms[activePersonKey]
+  const activeResult = singleResults[activePersonKey]
+  const activeReading = readingStates[activePersonKey]
+  const activeLoading = singleLoading[activePersonKey]
+  const activeError = singleErrors[activePersonKey]
+  const singleStateOptions = getStateOptions(activeForm.country)
+  const singleCityOptions = getCityOptions(activeForm.country, activeForm.state)
+  const singleMatchedLocation = findLocationMatch(activeForm)
+  const singleMapLat = Number.parseFloat(activeForm.latitude)
+  const singleMapLon = Number.parseFloat(activeForm.longitude)
+  const helperNoticeSingle = presetNotice(singleMatchedLocation)
+
+  const activeChartPlanets: PlanetGlyph[] = useMemo(() => {
+    if (!activeResult) return []
+    return activeResult.planets.map(p => ({
+      key: p.key,
+      glyph: PLANET_GLYPHS[p.key] || p.glyph,
+      label: lang === 'en' ? p.labelEn : p.labelMy,
+      degree: p.longitude
+    }))
+  }, [activeResult, lang])
+
+  const activeHouseLines: HouseLine[] = useMemo(() => {
+    if (!activeResult) return []
+    return activeResult.houses.map(h => ({ number: h.number, degree: h.degree }))
+  }, [activeResult])
+
+  const coupleChartData = useMemo(() => {
+    if (!coupleResult) return null
+    return {
+      partnerA: {
+        planets: coupleResult.partnerA.planets.map(p => ({
+          key: p.key,
+          glyph: PLANET_GLYPHS[p.key] || p.glyph,
+          label: lang === 'en' ? p.labelEn : p.labelMy,
+          degree: p.longitude
+        })),
+        houses: coupleResult.partnerA.houses.map(h => ({ number: h.number, degree: h.degree }))
+      },
+      partnerB: {
+        planets: coupleResult.partnerB.planets.map(p => ({
+          key: p.key,
+          glyph: PLANET_GLYPHS[p.key] || p.glyph,
+          label: lang === 'en' ? p.labelEn : p.labelMy,
+          degree: p.longitude
+        })),
+        houses: coupleResult.partnerB.houses.map(h => ({ number: h.number, degree: h.degree }))
+      }
+    }
+  }, [coupleResult, lang])
+
+  useEffect(() => {
+    const base = singleResults.self
+    if (!base) return
+    const snapshot = base
+    const context: PersonKey = 'self'
+    let cancelled = false
+    const controller = new AbortController()
+    setReadingStates(prev => ({
+      ...prev,
+      [context]: { ...prev[context], planetInsights: [], houseInsights: [], summary: null, status: 'planets', error: null }
+    }))
+
+    async function requestPhase(phase: 'planets' | 'houses') {
+      const res = await fetch('/api/natal/reading', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          context,
+          phase,
+          metadata: snapshot.metadata,
+          planets: snapshot.planets,
+          houses: snapshot.houses,
+          ascendant: snapshot.ascendant,
+          midheaven: snapshot.midheaven,
+          language: lang,
+          label: submittedLabels.self,
+          gender: submittedGenders.self
+        }),
+        signal: controller.signal
+      })
+      const data = await res.json().catch(() => ({}))
+      if (!res.ok) throw new Error(data?.error || copy.reading.error)
+      return data as { topics: ReadingTopic[]; summary?: ReadingSummary }
+    }
+
+    ;(async () => {
+      try {
+        const planetData = await requestPhase('planets')
+        if (cancelled) return
+        setReadingStates(prev => ({
+          ...prev,
+          [context]: {
+            ...prev[context],
+            planetInsights: Array.isArray(planetData.topics) ? planetData.topics : [],
+            status: 'houses'
+          }
+        }))
+        const houseData = await requestPhase('houses')
+        if (cancelled) return
+        setReadingStates(prev => ({
+          ...prev,
+          [context]: {
+            ...prev[context],
+            houseInsights: Array.isArray(houseData.topics) ? houseData.topics : [],
+            summary: houseData.summary || null,
+            status: 'done'
+          }
+        }))
+      } catch (err: any) {
+        if (cancelled || err?.name === 'AbortError') return
+        setReadingStates(prev => ({
+          ...prev,
+          [context]: { ...prev[context], error: err?.message || copy.reading.error, status: 'idle' }
+        }))
+      }
+    })()
+
+    return () => {
+      cancelled = true
+      controller.abort()
+    }
+  }, [singleResults.self, lang, submittedLabels.self, submittedGenders.self, copy.reading.error])
+
+  useEffect(() => {
+    const base = singleResults.other
+    if (!base) return
+    const snapshot = base
+    const context: PersonKey = 'other'
+    let cancelled = false
+    const controller = new AbortController()
+    setReadingStates(prev => ({
+      ...prev,
+      [context]: { ...prev[context], planetInsights: [], houseInsights: [], summary: null, status: 'planets', error: null }
+    }))
+
+    async function requestPhase(phase: 'planets' | 'houses') {
+      const res = await fetch('/api/natal/reading', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          context,
+          phase,
+          metadata: snapshot.metadata,
+          planets: snapshot.planets,
+          houses: snapshot.houses,
+          ascendant: snapshot.ascendant,
+          midheaven: snapshot.midheaven,
+          language: lang,
+          label: submittedLabels.other,
+          gender: submittedGenders.other
+        }),
+        signal: controller.signal
+      })
+      const data = await res.json().catch(() => ({}))
+      if (!res.ok) throw new Error(data?.error || copy.reading.error)
+      return data as { topics: ReadingTopic[]; summary?: ReadingSummary }
+    }
+
+    ;(async () => {
+      try {
+        const planetData = await requestPhase('planets')
+        if (cancelled) return
+        setReadingStates(prev => ({
+          ...prev,
+          [context]: {
+            ...prev[context],
+            planetInsights: Array.isArray(planetData.topics) ? planetData.topics : [],
+            status: 'houses'
+          }
+        }))
+        const houseData = await requestPhase('houses')
+        if (cancelled) return
+        setReadingStates(prev => ({
+          ...prev,
+          [context]: {
+            ...prev[context],
+            houseInsights: Array.isArray(houseData.topics) ? houseData.topics : [],
+            summary: houseData.summary || null,
+            status: 'done'
+          }
+        }))
+      } catch (err: any) {
+        if (cancelled || err?.name === 'AbortError') return
+        setReadingStates(prev => ({
+          ...prev,
+          [context]: { ...prev[context], error: err?.message || copy.reading.error, status: 'idle' }
+        }))
+      }
+    })()
+
+    return () => {
+      cancelled = true
+      controller.abort()
+    }
+  }, [singleResults.other, lang, submittedLabels.other, submittedGenders.other, copy.reading.error])
+
+  useEffect(() => {
+    if (!coupleResult) return
+    let cancelled = false
+    setRelationshipTopics([])
+    setRelationshipSummary(null)
+    setRelationshipStatus('loading')
+    setRelationshipError(null)
+    setRelationshipSource(null)
+
+    const partnersPayload = PARTNER_KEYS.map(key => {
+      const result = coupleResult[key]
+      const meta = couplePayloadMeta[key]
+      const fallbackLabel = key === 'partnerA' ? copy.relationship.partnerLabels.first : copy.relationship.partnerLabels.second
+      return {
+        label: meta.label || fallbackLabel,
+        gender: meta.gender,
+        metadata: result.metadata,
+        planets: result.planets,
+        houses: result.houses,
+        ascendant: result.ascendant,
+        midheaven: result.midheaven
+      }
+    })
+
+    ;(async () => {
+      try {
+        const res = await fetch('/api/natal/reading', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            context: 'couple',
+            language: lang,
+            partners: partnersPayload
+          })
+        })
+        const data = await res.json().catch(() => ({}))
+        if (!res.ok) throw new Error(data?.error || copy.reading.error)
+        if (cancelled) return
+        setRelationshipTopics(Array.isArray(data.topics) ? data.topics : [])
+        setRelationshipSummary(data.summary || null)
+        setRelationshipStatus('done')
+        setRelationshipSource(data.source === 'fallback' ? 'fallback' : 'ai')
+      } catch (err: any) {
+        if (cancelled) return
+        setRelationshipError(err?.message || copy.reading.error)
+        setRelationshipStatus('idle')
+      }
+    })()
+
+    return () => {
+      cancelled = true
+    }
+  }, [coupleResult, couplePayloadMeta, lang, copy.relationship.partnerLabels.first, copy.relationship.partnerLabels.second, copy.reading.error])
+
+  async function handleSingleSubmit(target: PersonKey) {
+    const form = personForms[target]
+    setSingleErrors(prev => ({ ...prev, [target]: null }))
+    setSingleLoading(prev => ({ ...prev, [target]: true }))
+    setSingleResults(prev => ({ ...prev, [target]: null }))
+    setReadingStates(prev => ({
+      ...prev,
+      [target]: { planetInsights: [], houseInsights: [], summary: null, status: 'idle', error: null }
+    }))
+    const labelValue = form.label.trim()
+    setSubmittedLabels(prev => ({ ...prev, [target]: labelValue }))
+    setSubmittedGenders(prev => ({ ...prev, [target]: form.gender }))
+
+    try {
+      const payload = {
+        birthDate: form.birthDate,
+        birthTime: form.birthTime,
+        tzOffsetMinutes: form.tzOffsetMinutes,
+        latitude: parseFloat(form.latitude),
+        longitude: parseFloat(form.longitude),
+        houseSystem: form.houseSystem
+      }
+      const res = await fetch('/api/natal', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(payload)
+      })
+      const data = await res.json().catch(() => ({}))
+      if (!res.ok) {
+        throw new Error(data?.error || 'Unable to generate chart')
+      }
+      setSingleResults(prev => ({ ...prev, [target]: data as NatalResponse }))
+    } catch (err: any) {
+      setSingleErrors(prev => ({ ...prev, [target]: err?.message || 'Unexpected error' }))
+    } finally {
+      setSingleLoading(prev => ({ ...prev, [target]: false }))
+    }
+  }
+
+  async function handleCoupleSubmit() {
+    setCoupleError(null)
+    setCoupleLoading(true)
+    setCoupleResult(null)
+    setRelationshipTopics([])
+    setRelationshipSummary(null)
+    setRelationshipStatus('idle')
+    setRelationshipError(null)
+    setRelationshipSource(null)
+
+    const labels = {
+      partnerA: coupleForms.partnerA.label.trim() || copy.relationship.partnerLabels.first,
+      partnerB: coupleForms.partnerB.label.trim() || copy.relationship.partnerLabels.second
+    }
+    setCouplePayloadMeta({
+      partnerA: { label: labels.partnerA, gender: coupleForms.partnerA.gender },
+      partnerB: { label: labels.partnerB, gender: coupleForms.partnerB.gender }
+    })
+
+    try {
+      const buildPayload = (form: CoupleFormState) => ({
+        birthDate: form.birthDate,
+        birthTime: form.birthTime,
+        tzOffsetMinutes: form.tzOffsetMinutes,
+        latitude: parseFloat(form.latitude),
+        longitude: parseFloat(form.longitude),
+        houseSystem: form.houseSystem
+      })
+      const [firstRes, secondRes] = await Promise.all([
+        fetch('/api/natal', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify(buildPayload(coupleForms.partnerA))
+        }),
+        fetch('/api/natal', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify(buildPayload(coupleForms.partnerB))
+        })
+      ])
+      const firstData = await firstRes.json().catch(() => ({}))
+      if (!firstRes.ok) throw new Error(firstData?.error || 'Unable to generate first chart')
+      const secondData = await secondRes.json().catch(() => ({}))
+      if (!secondRes.ok) throw new Error(secondData?.error || 'Unable to generate second chart')
+      setCoupleResult({ partnerA: firstData as NatalResponse, partnerB: secondData as NatalResponse })
+    } catch (err: any) {
+      setCoupleError(err?.message || 'Unexpected error')
+    } finally {
+      setCoupleLoading(false)
+    }
+  }
+
+  async function handleSubmit(event: FormEvent<HTMLFormElement>) {
+    event.preventDefault()
+    if (mode === 'couple') {
+      await handleCoupleSubmit()
+      return
+    }
+    await handleSingleSubmit(activePersonKey)
+  }
 
   useEffect(() => {
     if (typeof document === 'undefined') return
@@ -336,522 +972,709 @@ export default function NatalClient({ initialLang }: { initialLang: Lang }) {
   }, [])
 
   useEffect(() => {
-    if (!selectedCountry && countryOptions.length) {
-      setSelectedCountry(countryOptions[0])
-    }
-  }, [countryOptions, selectedCountry])
-
-  const stateOptions = useMemo(() => {
-    if (!selectedCountry) return []
-    return Array.from(new Set(
-      NATAL_LOCATIONS.filter(loc => loc.country === selectedCountry).map(loc => loc.state)
-    )).sort()
-  }, [selectedCountry])
-
-  useEffect(() => {
-    if (!selectedCountry) {
-      setSelectedState('')
-      setSelectedCity('')
-      return
-    }
-    if (stateOptions.length && !stateOptions.includes(selectedState)) {
-      setSelectedState(stateOptions[0])
-      setSelectedCity('')
-    }
-  }, [selectedCountry, stateOptions, selectedState])
-
-  const cityOptions = useMemo(() => {
-    if (!selectedCountry || !selectedState) return []
-    return Array.from(new Set(
-      NATAL_LOCATIONS
-        .filter(loc => loc.country === selectedCountry && loc.state === selectedState)
-        .map(loc => loc.city)
-    )).sort()
-  }, [selectedCountry, selectedState])
-
-  useEffect(() => {
-    if (!selectedState) {
-      setSelectedCity('')
-      return
-    }
-    if (cityOptions.length && !cityOptions.includes(selectedCity)) {
-      setSelectedCity(cityOptions[0])
-    }
-  }, [cityOptions, selectedState, selectedCity])
-
-  const matchedLocation = useMemo(() => {
-    if (!selectedCountry || !selectedState || !selectedCity) return null
-    return NATAL_LOCATIONS.find(loc =>
-      loc.country === selectedCountry &&
-      loc.state === selectedState &&
-      loc.city === selectedCity
-    ) || null
-  }, [selectedCountry, selectedState, selectedCity])
-
-  useEffect(() => {
-    if (!result) return
-    const snapshot = result
-    let cancelled = false
-    const controller = new AbortController()
-    setPlanetInsights([])
-    setHouseInsights([])
-    setReadingSummary(null)
-    setReadingError(null)
-    setReadingStatus('planets')
-
-    async function requestReading(phase: 'planets' | 'houses') {
-      const res = await fetch('/api/natal/reading', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          phase,
-          metadata: snapshot.metadata,
-          planets: snapshot.planets,
-          houses: snapshot.houses,
-          ascendant: snapshot.ascendant,
-          midheaven: snapshot.midheaven,
-          language: lang,
-          label: submittedLabel
-        }),
-        signal: controller.signal
-      })
-      const data = await res.json().catch(() => ({}))
-      if (!res.ok) throw new Error(data?.error || copy.reading.error)
-      return data as { topics: ReadingTopic[]; summary?: ReadingSummary }
-    }
-
-    ;(async () => {
-      try {
-        const planetData = await requestReading('planets')
-        if (cancelled) return
-        setPlanetInsights(Array.isArray(planetData.topics) ? planetData.topics : [])
-        setReadingStatus('houses')
-        const houseData = await requestReading('houses')
-        if (cancelled) return
-        setHouseInsights(Array.isArray(houseData.topics) ? houseData.topics : [])
-        setReadingSummary(houseData.summary || null)
-        setReadingStatus('done')
-      } catch (err: any) {
-        if (cancelled || err?.name === 'AbortError') return
-        setReadingError(err?.message || copy.reading.error)
-        setReadingStatus('idle')
-      }
-    })()
-
-    return () => {
-      cancelled = true
-      controller.abort()
-    }
-  }, [result, lang, submittedLabel, copy.reading.error])
-
-  function handleChange(field: string, value: string) {
-    if (field === 'tzOffsetMinutes') setTimezoneLocked(false)
-    setForm(prev => ({ ...prev, [field]: value }))
-  }
-
-  function applyPresetLocation() {
-    if (!matchedLocation) return
-    setForm(prev => ({
-      ...prev,
-      latitude: matchedLocation.latitude.toFixed(4),
-      longitude: matchedLocation.longitude.toFixed(4),
-      tzOffsetMinutes: matchedLocation.tzOffsetHours.toString()
+    setCoupleForms(prev => ({
+      partnerA: prev.partnerA.label ? prev.partnerA : { ...prev.partnerA, label: copy.relationship.partnerLabels.first },
+      partnerB: prev.partnerB.label ? prev.partnerB : { ...prev.partnerB, label: copy.relationship.partnerLabels.second }
     }))
-    setTimezoneLocked(true)
-  }
-
-  function handleMapUpdate(lat: number, lon: number) {
-    setForm(prev => ({
-      ...prev,
-      latitude: lat.toFixed(4),
-      longitude: lon.toFixed(4)
+    setCouplePayloadMeta(prev => ({
+      partnerA: { ...prev.partnerA, label: prev.partnerA.label || copy.relationship.partnerLabels.first },
+      partnerB: { ...prev.partnerB, label: prev.partnerB.label || copy.relationship.partnerLabels.second }
     }))
-    setTimezoneLocked(false)
-  }
+  }, [copy.relationship.partnerLabels.first, copy.relationship.partnerLabels.second])
 
-  async function handleSubmit(event: FormEvent<HTMLFormElement>) {
-    event.preventDefault()
-    setError(null)
-    setLoading(true)
-    setResult(null)
-    setPlanetInsights([])
-    setHouseInsights([])
-    setReadingSummary(null)
-    setReadingError(null)
-    setReadingStatus('idle')
-    const labelValue = form.label.trim()
-    setSubmittedLabel(labelValue)
-    try {
-      const payload = {
-        birthDate: form.birthDate,
-        birthTime: form.birthTime,
-        tzOffsetMinutes: form.tzOffsetMinutes,
-        latitude: parseFloat(form.latitude),
-        longitude: parseFloat(form.longitude),
-        houseSystem: form.houseSystem
-      }
-      const response = await fetch('/api/natal', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify(payload)
-      })
-      if (!response.ok) {
-        const data = await response.json().catch(() => ({}))
-        throw new Error(data?.error || 'Unable to generate chart')
-      }
-      const data: NatalResponse = await response.json()
-      setResult(data)
-    } catch (err: any) {
-      setError(err?.message || 'Unexpected error')
-    } finally {
-      setLoading(false)
-    }
-  }
 
-  const chartPlanets: PlanetGlyph[] = useMemo(() => {
-    if (!result) return []
-    return result.planets.map(p => ({
-      key: p.key,
-      glyph: PLANET_GLYPHS[p.key] || p.glyph,
-      label: lang === 'en' ? p.labelEn : p.labelMy,
-      degree: p.longitude
-    }))
-  }, [result, lang])
-
-  const houseLines: HouseLine[] = useMemo(() => {
-    if (!result) return []
-    return result.houses.map(h => ({ number: h.number, degree: h.degree }))
-  }, [result])
-
-  const mapLat = Number.parseFloat(form.latitude)
-  const mapLon = Number.parseFloat(form.longitude)
+  const submitLabel = mode === 'couple' ? COUPLE_SUBMIT_LABEL[lang] : copy.form.submit
+  const displayLoading = mode === 'couple' ? coupleLoading : activeLoading
+  const displayError = mode === 'couple' ? coupleError : activeError
+  const showSingleEmptyState = mode !== 'couple' && !activeResult && !activeLoading
+  const showCoupleEmptyState = mode === 'couple' && !coupleResult && !coupleLoading
+  const activeTab = copy.tabs[mode]
+  const singleStatusText = copy.reading.status[activeReading.status]
+  const relationshipStatusText = copy.relationship.status[relationshipStatus]
 
   return (
     <div className="space-y-8">
-      <section className="rounded-2xl border border-mok-goldDeep/30 bg-black/40 p-5 shadow-lg">
-        <h1 className="gold-gradient text-2xl font-semibold">{copy.title}</h1>
-        <p className="mt-2 text-sm text-neutral-300">{copy.intro}</p>
-        <form onSubmit={handleSubmit} className="mt-6 grid gap-4 md:grid-cols-2">
-          <label className="text-sm text-neutral-200">
-            <span className="mb-1 block text-xs uppercase tracking-widest text-neutral-400">{copy.form.name}</span>
-            <input
-              type="text"
-              value={form.label}
-              onChange={e => handleChange('label', e.target.value)}
-              className="w-full rounded-lg border border-mok-goldDeep/40 bg-black/60 px-3 py-2 focus:border-mok-gold focus:outline-none"
-            />
-          </label>
-          <label className="text-sm text-neutral-200">
-            <span className="mb-1 block text-xs uppercase tracking-widest text-neutral-400">{copy.form.house}</span>
-            <select
-              value={form.houseSystem}
-              onChange={e => handleChange('houseSystem', e.target.value)}
-              className="w-full rounded-lg border border-mok-goldDeep/40 bg-black/60 px-3 py-2"
-            >
-              {HOUSE_OPTIONS.map(opt => (
-                <option key={opt.value} value={opt.value}>
-                  {lang === 'en' ? opt.en : opt.my}
-                </option>
-              ))}
-            </select>
-          </label>
-          <label className="text-sm text-neutral-200">
-            <span className="mb-1 block text-xs uppercase tracking-widest text-neutral-400">{copy.form.birthDate}</span>
-            <input
-              type="date"
-              required
-              value={form.birthDate}
-              onChange={e => handleChange('birthDate', e.target.value)}
-              className="w-full rounded-lg border border-mok-goldDeep/40 bg-black/60 px-3 py-2"
-            />
-          </label>
-          <label className="text-sm text-neutral-200">
-            <span className="mb-1 block text-xs uppercase tracking-widest text-neutral-400">{copy.form.birthTime}</span>
-            <input
-              type="time"
-              required
-              value={form.birthTime}
-              onChange={e => handleChange('birthTime', e.target.value)}
-              className="w-full rounded-lg border border-mok-goldDeep/40 bg-black/60 px-3 py-2"
-            />
-            <span className="mt-1 block text-xs text-neutral-500">{copy.form.timeHint}</span>
-          </label>
-          <label className="text-sm text-neutral-200">
-            <span className="mb-1 block text-xs uppercase tracking-widest text-neutral-400">{copy.form.tzLabel}</span>
-            <input
-              type="text"
-              value={form.tzOffsetMinutes}
-              onChange={e => handleChange('tzOffsetMinutes', e.target.value)}
-              className="w-full rounded-lg border border-mok-goldDeep/40 bg-black/60 px-3 py-2 disabled:opacity-60"
-              disabled={timezoneLocked}
-            />
-            <span className="mt-1 block text-xs text-neutral-500">{timezoneLocked ? copy.tzAutoNote.replace('{tz}', formatOffsetDisplay(form.tzOffsetMinutes)) : copy.form.tzHint}</span>
-          </label>
-          <label className="text-sm text-neutral-200">
-            <span className="mb-1 block text-xs uppercase tracking-widest text-neutral-400">{copy.form.latitude}</span>
-            <input
-              type="number"
-              step="0.0001"
-              value={form.latitude}
-              onChange={e => handleChange('latitude', e.target.value)}
-              className="w-full rounded-lg border border-mok-goldDeep/40 bg-black/60 px-3 py-2"
-            />
-          </label>
-          <label className="text-sm text-neutral-200">
-            <span className="mb-1 block text-xs uppercase tracking-widest text-neutral-400">{copy.form.longitude}</span>
-            <input
-              type="number"
-              step="0.0001"
-              value={form.longitude}
-              onChange={e => handleChange('longitude', e.target.value)}
-              className="w-full rounded-lg border border-mok-goldDeep/40 bg-black/60 px-3 py-2"
-            />
-          </label>
-
-          <div className="md:col-span-2 rounded-2xl border border-mok-goldDeep/30 bg-black/20 p-4">
-            <h3 className="text-sm font-semibold text-mok-gold">{copy.helperTitle}</h3>
-            <p className="text-xs text-neutral-400">{copy.helperIntro}</p>
-            <div className="mt-4 grid gap-4 md:grid-cols-2">
-              <div className="space-y-3">
-                <p className="text-xs font-semibold uppercase tracking-widest text-neutral-400">{copy.helperDropdown.heading}</p>
-                <label className="text-xs text-neutral-300">
-                  <span className="mb-1 block">{copy.helperDropdown.country}</span>
-                  <select value={selectedCountry} onChange={e => setSelectedCountry(e.target.value)} className="w-full rounded-lg border border-mok-goldDeep/40 bg-black/60 px-3 py-2">
-                    {countryOptions.map(option => (
-                      <option key={option} value={option}>{option}</option>
-                    ))}
-                  </select>
-                </label>
-                <label className="text-xs text-neutral-300">
-                  <span className="mb-1 block">{copy.helperDropdown.state}</span>
-                  <select value={selectedState} onChange={e => setSelectedState(e.target.value)} className="w-full rounded-lg border border-mok-goldDeep/40 bg-black/60 px-3 py-2">
-                    {stateOptions.map(option => (
-                      <option key={option} value={option}>{option}</option>
-                    ))}
-                  </select>
-                </label>
-                <label className="text-xs text-neutral-300">
-                  <span className="mb-1 block">{copy.helperDropdown.city}</span>
-                  <select value={selectedCity} onChange={e => setSelectedCity(e.target.value)} className="w-full rounded-lg border border-mok-goldDeep/40 bg-black/60 px-3 py-2">
-                    {cityOptions.map(option => (
-                      <option key={option} value={option}>{option}</option>
-                    ))}
-                  </select>
-                </label>
+      <section className="rounded-2xl border border-mok-goldDeep/30 bg-black/40 p-5 shadow-lg space-y-6">
+        <div className="flex flex-col gap-4 lg:flex-row lg:items-center lg:justify-between">
+          <div>
+            <p className="text-xs uppercase tracking-[0.3em] text-neutral-500">{copy.title}</p>
+            <h1 className="gold-gradient text-2xl font-semibold">{copy.title}</h1>
+            <p className="mt-2 text-sm text-neutral-300">{copy.intro}</p>
+            <p className="mt-3 text-xs text-neutral-400">{activeTab.description}</p>
+          </div>
+          <div className="flex flex-col gap-2 sm:flex-row sm:flex-wrap">
+            {MODE_TABS.map(tab => {
+              const selected = mode === tab.id
+              const tabCopy = copy.tabs[tab.id]
+              return (
                 <button
+                  key={tab.id}
                   type="button"
-                  onClick={applyPresetLocation}
-                  disabled={!matchedLocation}
-                  className="rounded-full bg-mok-gold px-5 py-2 text-xs font-semibold text-black disabled:opacity-60"
+                  onClick={() => setMode(tab.id)}
+                  className={`flex w-full sm:w-[260px] items-start gap-2 rounded-2xl border px-3 py-2 text-left transition ${
+                    selected ? 'border-mok-gold bg-mok-gold/10' : 'border-mok-goldDeep/40 hover:border-mok-gold/60'
+                  }`}
                 >
-                  {copy.helperDropdown.apply}
+                  <span className="text-lg text-mok-gold">{tab.icon}</span>
+                  <div>
+                    <p className="text-sm font-semibold text-white">{tabCopy.title}</p>
+                    <p className="text-xs text-neutral-400">{tabCopy.description}</p>
+                  </div>
                 </button>
-                {matchedLocation && (
-                  <p className="text-xs text-neutral-500">
-                    {copy.helperDropdown.notice.replace('{tz}', formatOffsetHours(matchedLocation.tzOffsetHours))}
-                  </p>
-                )}
-              </div>
-              <div className="space-y-2">
-                <p className="text-xs text-neutral-400">{copy.helperMapHint}</p>
-                <LocationPickerMap
-                  latitude={Number.isFinite(mapLat) ? mapLat : 16.8409}
-                  longitude={Number.isFinite(mapLon) ? mapLon : 96.1735}
-                  onChange={handleMapUpdate}
+              )
+            })}
+          </div>
+        </div>
+
+        <form onSubmit={handleSubmit} className="space-y-6">
+          {mode !== 'couple' ? (
+            <div className="grid gap-4 md:grid-cols-2">
+              <label className="text-sm text-neutral-200">
+                <span className="mb-1 block text-xs uppercase tracking-widest text-neutral-400">{copy.form.name}</span>
+                <input
+                  type="text"
+                  value={activeForm.label}
+                  onChange={e => handlePersonFieldChange(activePersonKey, 'label', e.target.value)}
+                  className="w-full rounded-lg border border-mok-goldDeep/40 bg-black/60 px-3 py-2 focus:border-mok-gold focus:outline-none"
                 />
-              </div>
-            </div>
-          </div>
-
-          <div className="md:col-span-2 flex items-center justify-end gap-3">
-            {loading && <span className="text-xs text-neutral-400">{copy.loading}</span>}
-            <button
-              type="submit"
-              disabled={loading}
-              className="rounded-full bg-mok-gold px-6 py-2 text-sm font-semibold text-black disabled:opacity-60"
-            >
-              {copy.form.submit}
-            </button>
-          </div>
-        </form>
-        {error && <p className="mt-4 rounded-lg border border-red-500/40 bg-red-500/10 p-3 text-sm text-red-200">{error}</p>}
-      </section>
-
-      {!result && !loading && (
-        <p className="text-center text-sm text-neutral-500">{copy.empty}</p>
-      )}
-
-      {result && (
-        <section className="space-y-6">
-          <div className="grid gap-4 md:grid-cols-3">
-            <div className="rounded-2xl border border-mok-goldDeep/40 bg-black/40 p-4">
-              <h2 className="text-sm font-semibold text-mok-gold">{copy.resultTitle}</h2>
-              <ul className="mt-3 space-y-1 text-xs text-neutral-300">
-                <li>{result.metadata.birthDate} · {result.metadata.birthTime}</li>
-                <li>{formatOffset(result.metadata.timezoneMinutes)} · lat {result.metadata.latitude.toFixed(4)}, lon {result.metadata.longitude.toFixed(4)}</li>
-                <li>House: {result.metadata.houseSystem}</li>
-              </ul>
-            </div>
-            {result.ascendant && (
-              <div className="rounded-2xl border border-mok-goldDeep/40 bg-black/40 p-4">
-                <h3 className="text-sm font-semibold text-mok-gold">Ascendant</h3>
-                <p className="text-lg font-semibold text-white">{lang === 'en' ? result.ascendant.sign.en : result.ascendant.sign.my}</p>
-                <p className="text-xs text-neutral-400">{formatDMS(result.ascendant.formatted)}</p>
-              </div>
-            )}
-            {result.midheaven && (
-              <div className="rounded-2xl border border-mok-goldDeep/40 bg-black/40 p-4">
-                <h3 className="text-sm font-semibold text-mok-gold">Midheaven</h3>
-                <p className="text-lg font-semibold text-white">{lang === 'en' ? result.midheaven.sign.en : result.midheaven.sign.my}</p>
-                <p className="text-xs text-neutral-400">{formatDMS(result.midheaven.formatted)}</p>
-              </div>
-            )}
-          </div>
-
-          <div className="rounded-2xl border border-mok-goldDeep/30 bg-black/30 p-4">
-            <h2 className="mb-3 text-sm font-semibold text-mok-gold">{copy.chartTitle}</h2>
-            <div className="flex flex-col items-center gap-4 md:flex-row md:items-start">
-              <NatalChartWheel planets={chartPlanets} houses={houseLines} ascDegree={result.ascendant?.degree} />
-              <div className="w-full text-xs text-neutral-300">
-                <p>{lang === 'en' ? 'Planets are drawn according to ecliptic longitude. 0° Aries is at the top of the wheel.' : 'ဘီးပုံတွင် ဂြိုလ်နေရာများကို အကြောင်းပြုလျှင် ၀ ဒီဂရီ မက္ကရ ကို အပေါ်တွင် ထားပေးထားသည်။'}</p>
-              </div>
-            </div>
-          </div>
-
-          <div className="grid gap-6 md:grid-cols-2">
-            <div className="rounded-2xl border border-mok-goldDeep/30 bg-black/30 p-4 overflow-x-auto">
-              <h2 className="mb-3 text-sm font-semibold text-mok-gold">{copy.planetsTitle}</h2>
-              <table className="w-full text-sm">
-                <thead className="text-xs uppercase tracking-widest text-neutral-400">
-                  <tr>
-                    <th className="py-2 text-left">Planet</th>
-                    <th className="text-left">Sign</th>
-                    <th className="text-left">Degree</th>
-                    <th className="text-left">Rx</th>
-                  </tr>
-                </thead>
-                <tbody>
-                  {result.planets.map(planet => (
-                    <tr key={planet.key} className="border-t border-white/5 text-sm">
-                      <td className="py-2 font-medium text-white">{lang === 'en' ? planet.labelEn : planet.labelMy}</td>
-                      <td>{lang === 'en' ? planet.sign.en : planet.sign.my}</td>
-                      <td>{formatDMS(planet.absoluteFormatted)}</td>
-                      <td>{planet.retrograde ? '℞' : ''}</td>
-                    </tr>
+              </label>
+              {mode === 'other' && (
+                <label className="text-sm text-neutral-200">
+                  <span className="mb-1 block text-xs uppercase tracking-widest text-neutral-400">{copy.relationship.genders.label}</span>
+                  <select
+                    value={activeForm.gender}
+                    onChange={e => handlePersonFieldChange(activePersonKey, 'gender', e.target.value)}
+                    className="w-full rounded-lg border border-mok-goldDeep/40 bg-black/60 px-3 py-2"
+                  >
+                    {PERSON_GENDER_OPTIONS.map(option => (
+                      <option key={option} value={option}>{copy.relationship.genders.options[option]}</option>
+                    ))}
+                  </select>
+                </label>
+              )}
+              <label className="text-sm text-neutral-200">
+                <span className="mb-1 block text-xs uppercase tracking-widest text-neutral-400">{copy.form.house}</span>
+                <select
+                  value={activeForm.houseSystem}
+                  onChange={e => handlePersonFieldChange(activePersonKey, 'houseSystem', e.target.value)}
+                  className="w-full rounded-lg border border-mok-goldDeep/40 bg-black/60 px-3 py-2"
+                >
+                  {HOUSE_OPTIONS.map(opt => (
+                    <option key={opt.value} value={opt.value}>
+                      {lang === 'en' ? opt.en : opt.my}
+                    </option>
                   ))}
-                </tbody>
-              </table>
-            </div>
-            <div className="rounded-2xl border border-mok-goldDeep/30 bg-black/30 p-4 overflow-x-auto">
-              <h2 className="mb-3 text-sm font-semibold text-mok-gold">{copy.housesTitle}</h2>
-              <table className="w-full text-sm">
-                <thead className="text-xs uppercase tracking-widest text-neutral-400">
-                  <tr>
-                    <th className="py-2 text-left">#</th>
-                    <th className="text-left">Sign</th>
-                    <th className="text-left">Degree</th>
-                  </tr>
-                </thead>
-                <tbody>
-                  {result.houses.map(house => (
-                    <tr key={house.number} className="border-t border-white/5 text-sm">
-                      <td className="py-2 font-semibold text-white">{house.number}</td>
-                      <td>{lang === 'en' ? house.sign.en : house.sign.my}</td>
-                      <td>{formatDMS(house.absoluteFormatted)}</td>
-                    </tr>
-                  ))}
-                </tbody>
-              </table>
-            </div>
-          </div>
+                </select>
+              </label>
+              <label className="text-sm text-neutral-200">
+                <span className="mb-1 block text-xs uppercase tracking-widest text-neutral-400">{copy.form.birthDate}</span>
+                <input
+                  type="date"
+                  required
+                  value={activeForm.birthDate}
+                  onChange={e => handlePersonFieldChange(activePersonKey, 'birthDate', e.target.value)}
+                  className="w-full rounded-lg border border-mok-goldDeep/40 bg-black/60 px-3 py-2"
+                />
+              </label>
+              <label className="text-sm text-neutral-200">
+                <span className="mb-1 block text-xs uppercase tracking-widest text-neutral-400">{copy.form.birthTime}</span>
+                <input
+                  type="time"
+                  required
+                  value={activeForm.birthTime}
+                  onChange={e => handlePersonFieldChange(activePersonKey, 'birthTime', e.target.value)}
+                  className="w-full rounded-lg border border-mok-goldDeep/40 bg-black/60 px-3 py-2"
+                />
+                <span className="mt-1 block text-xs text-neutral-500">{copy.form.timeHint}</span>
+              </label>
+              <label className="text-sm text-neutral-200">
+                <span className="mb-1 block text-xs uppercase tracking-widest text-neutral-400">{copy.form.tzLabel}</span>
+                <input
+                  type="text"
+                  value={activeForm.tzOffsetMinutes}
+                  onChange={e => handlePersonFieldChange(activePersonKey, 'tzOffsetMinutes', e.target.value)}
+                  className="w-full rounded-lg border border-mok-goldDeep/40 bg-black/60 px-3 py-2"
+                  disabled={activeForm.timezoneLocked}
+                />
+                <span className="mt-1 block text-xs text-neutral-500">{timezoneNote(activeForm)}</span>
+              </label>
+              <label className="text-sm text-neutral-200">
+                <span className="mb-1 block text-xs uppercase tracking-widest text-neutral-400">{copy.form.latitude}</span>
+                <input
+                  type="number"
+                  step="0.0001"
+                  value={activeForm.latitude}
+                  onChange={e => handlePersonFieldChange(activePersonKey, 'latitude', e.target.value)}
+                  className="w-full rounded-lg border border-mok-goldDeep/40 bg-black/60 px-3 py-2"
+                />
+              </label>
+              <label className="text-sm text-neutral-200">
+                <span className="mb-1 block text-xs uppercase tracking-widest text-neutral-400">{copy.form.longitude}</span>
+                <input
+                  type="number"
+                  step="0.0001"
+                  value={activeForm.longitude}
+                  onChange={e => handlePersonFieldChange(activePersonKey, 'longitude', e.target.value)}
+                  className="w-full rounded-lg border border-mok-goldDeep/40 bg-black/60 px-3 py-2"
+                />
+              </label>
 
-          {result.warnings && result.warnings.length > 0 && (
-            <div className="rounded-2xl border border-yellow-600/40 bg-yellow-500/10 p-4 text-sm text-yellow-100">
-              <h3 className="mb-2 font-semibold uppercase tracking-widest text-xs">{copy.warningsTitle}</h3>
-              <ul className="list-disc pl-5">
-                {result.warnings.map((warn, idx) => (
-                  <li key={idx}>{warn}</li>
-                ))}
-              </ul>
+              <div className="md:col-span-2 rounded-2xl border border-mok-goldDeep/30 bg-black/20 p-4">
+                <h3 className="text-sm font-semibold text-mok-gold">{copy.helperTitle}</h3>
+                <p className="text-xs text-neutral-400">{copy.helperIntro}</p>
+                <div className="mt-4 grid gap-4 md:grid-cols-2">
+                  <div className="space-y-3">
+                    <p className="text-xs font-semibold uppercase tracking-widest text-neutral-400">{copy.helperDropdown.heading}</p>
+                    <label className="text-xs text-neutral-300">
+                      <span className="mb-1 block">{copy.helperDropdown.country}</span>
+                      <select value={activeForm.country} onChange={e => handlePersonFieldChange(activePersonKey, 'country', e.target.value)} className="w-full rounded-lg border border-mok-goldDeep/40 bg-black/60 px-3 py-2">
+                        {countryOptions.map(option => (
+                          <option key={option} value={option}>{option}</option>
+                        ))}
+                      </select>
+                    </label>
+                    <label className="text-xs text-neutral-300">
+                      <span className="mb-1 block">{copy.helperDropdown.state}</span>
+                      <select value={activeForm.state} onChange={e => handlePersonFieldChange(activePersonKey, 'state', e.target.value)} className="w-full rounded-lg border border-mok-goldDeep/40 bg-black/60 px-3 py-2">
+                        {singleStateOptions.map(option => (
+                          <option key={option} value={option}>{option}</option>
+                        ))}
+                      </select>
+                    </label>
+                    <label className="text-xs text-neutral-300">
+                      <span className="mb-1 block">{copy.helperDropdown.city}</span>
+                      <select value={activeForm.city} onChange={e => handlePersonFieldChange(activePersonKey, 'city', e.target.value)} className="w-full rounded-lg border border-mok-goldDeep/40 bg-black/60 px-3 py-2">
+                        {singleCityOptions.map(option => (
+                          <option key={option} value={option}>{option}</option>
+                        ))}
+                      </select>
+                    </label>
+                    <button
+                      type="button"
+                      onClick={() => applyPresetLocationFor(activePersonKey)}
+                      disabled={!singleMatchedLocation}
+                      className="rounded-full bg-mok-gold px-5 py-2 text-xs font-semibold text-black disabled:opacity-60"
+                    >
+                      {copy.helperDropdown.apply}
+                    </button>
+                    {helperNoticeSingle && <p className="text-xs text-neutral-500">{helperNoticeSingle}</p>}
+                  </div>
+                  <div className="space-y-2">
+                    <p className="text-xs text-neutral-400">{copy.helperMapHint}</p>
+                    <LocationPickerMap
+                      latitude={Number.isFinite(singleMapLat) ? singleMapLat : DEFAULT_LOCATION.latitude}
+                      longitude={Number.isFinite(singleMapLon) ? singleMapLon : DEFAULT_LOCATION.longitude}
+                      onChange={(lat, lon) => handleMapUpdate(activePersonKey, lat, lon)}
+                    />
+                  </div>
+                </div>
+              </div>
+            </div>
+          ) : (
+            <div className="grid gap-6 lg:grid-cols-2">
+              {PARTNER_KEYS.map(key => {
+                const form = coupleForms[key]
+                const fallbackLabel = key === 'partnerA' ? copy.relationship.partnerLabels.first : copy.relationship.partnerLabels.second
+                const stateOptions = getStateOptions(form.country)
+                const cityOptions = getCityOptions(form.country, form.state)
+                const matched = findLocationMatch(form)
+                const mapLat = Number.parseFloat(form.latitude)
+                const mapLon = Number.parseFloat(form.longitude)
+                return (
+                  <div key={key} className="rounded-2xl border border-mok-goldDeep/40 bg-black/30 p-4 space-y-4">
+                    <div className="flex flex-col gap-3 sm:flex-row sm:items-end sm:justify-between">
+                      <label className="flex-1 text-sm text-neutral-200">
+                        <span className="mb-1 block text-xs uppercase tracking-widest text-neutral-400">{fallbackLabel}</span>
+                        <input
+                          type="text"
+                          value={form.label}
+                          placeholder={fallbackLabel}
+                          onChange={e => handleCoupleFieldChange(key, 'label', e.target.value)}
+                          className="w-full rounded-lg border border-mok-goldDeep/40 bg-black/60 px-3 py-2"
+                        />
+                      </label>
+                      <label className="text-xs text-neutral-300">
+                        <span className="mb-1 block">{copy.relationship.genders.label}</span>
+                        <select
+                          value={form.gender}
+                          onChange={e => handleCoupleFieldChange(key, 'gender', e.target.value)}
+                          className="w-full rounded-lg border border-mok-goldDeep/40 bg-black/60 px-3 py-2"
+                        >
+                          {GENDER_OPTIONS.map(option => (
+                            <option key={option} value={option}>{copy.relationship.genders.options[option]}</option>
+                          ))}
+                        </select>
+                      </label>
+                    </div>
+                    <div className="grid gap-4 sm:grid-cols-2">
+                      <label className="text-sm text-neutral-200">
+                        <span className="mb-1 block text-xs uppercase tracking-widest text-neutral-400">{copy.form.birthDate}</span>
+                        <input
+                          type="date"
+                          required
+                          value={form.birthDate}
+                          onChange={e => handleCoupleFieldChange(key, 'birthDate', e.target.value)}
+                          className="w-full rounded-lg border border-mok-goldDeep/40 bg-black/60 px-3 py-2"
+                        />
+                      </label>
+                      <label className="text-sm text-neutral-200">
+                        <span className="mb-1 block text-xs uppercase tracking-widest text-neutral-400">{copy.form.birthTime}</span>
+                        <input
+                          type="time"
+                          required
+                          value={form.birthTime}
+                          onChange={e => handleCoupleFieldChange(key, 'birthTime', e.target.value)}
+                          className="w-full rounded-lg border border-mok-goldDeep/40 bg-black/60 px-3 py-2"
+                        />
+                        <span className="mt-1 block text-xs text-neutral-500">{copy.form.timeHint}</span>
+                      </label>
+                      <label className="text-sm text-neutral-200">
+                        <span className="mb-1 block text-xs uppercase tracking-widest text-neutral-400">{copy.form.tzLabel}</span>
+                        <input
+                          type="text"
+                          value={form.tzOffsetMinutes}
+                          onChange={e => handleCoupleFieldChange(key, 'tzOffsetMinutes', e.target.value)}
+                          className="w-full rounded-lg border border-mok-goldDeep/40 bg-black/60 px-3 py-2"
+                          disabled={form.timezoneLocked}
+                        />
+                        <span className="mt-1 block text-xs text-neutral-500">{timezoneNote(form)}</span>
+                      </label>
+                      <label className="text-sm text-neutral-200">
+                        <span className="mb-1 block text-xs uppercase tracking-widest text-neutral-400">{copy.form.house}</span>
+                        <select
+                          value={form.houseSystem}
+                          onChange={e => handleCoupleFieldChange(key, 'houseSystem', e.target.value)}
+                          className="w-full rounded-lg border border-mok-goldDeep/40 bg-black/60 px-3 py-2"
+                        >
+                          {HOUSE_OPTIONS.map(opt => (
+                            <option key={opt.value} value={opt.value}>
+                              {lang === 'en' ? opt.en : opt.my}
+                            </option>
+                          ))}
+                        </select>
+                      </label>
+                      <label className="text-sm text-neutral-200">
+                        <span className="mb-1 block text-xs uppercase tracking-widest text-neutral-400">{copy.form.latitude}</span>
+                        <input
+                          type="number"
+                          step="0.0001"
+                          value={form.latitude}
+                          onChange={e => handleCoupleFieldChange(key, 'latitude', e.target.value)}
+                          className="w-full rounded-lg border border-mok-goldDeep/40 bg-black/60 px-3 py-2"
+                        />
+                      </label>
+                      <label className="text-sm text-neutral-200">
+                        <span className="mb-1 block text-xs uppercase tracking-widest text-neutral-400">{copy.form.longitude}</span>
+                        <input
+                          type="number"
+                          step="0.0001"
+                          value={form.longitude}
+                          onChange={e => handleCoupleFieldChange(key, 'longitude', e.target.value)}
+                          className="w-full rounded-lg border border-mok-goldDeep/40 bg-black/60 px-3 py-2"
+                        />
+                      </label>
+                    </div>
+                    <div className="rounded-xl border border-mok-goldDeep/20 bg-black/20 p-3 space-y-3">
+                      <p className="text-xs font-semibold uppercase tracking-widest text-neutral-400">{copy.helperDropdown.heading}</p>
+                      <div className="grid gap-3 sm:grid-cols-3">
+                        <label className="text-xs text-neutral-300">
+                          <span className="mb-1 block">{copy.helperDropdown.country}</span>
+                          <select value={form.country} onChange={e => handleCoupleFieldChange(key, 'country', e.target.value)} className="w-full rounded-lg border border-mok-goldDeep/40 bg-black/60 px-2 py-2">
+                            {countryOptions.map(option => (
+                              <option key={option} value={option}>{option}</option>
+                            ))}
+                          </select>
+                        </label>
+                        <label className="text-xs text-neutral-300">
+                          <span className="mb-1 block">{copy.helperDropdown.state}</span>
+                          <select value={form.state} onChange={e => handleCoupleFieldChange(key, 'state', e.target.value)} className="w-full rounded-lg border border-mok-goldDeep/40 bg-black/60 px-2 py-2">
+                            {stateOptions.map(option => (
+                              <option key={option} value={option}>{option}</option>
+                            ))}
+                          </select>
+                        </label>
+                        <label className="text-xs text-neutral-300">
+                          <span className="mb-1 block">{copy.helperDropdown.city}</span>
+                          <select value={form.city} onChange={e => handleCoupleFieldChange(key, 'city', e.target.value)} className="w-full rounded-lg border border-mok-goldDeep/40 bg-black/60 px-2 py-2">
+                            {cityOptions.map(option => (
+                              <option key={option} value={option}>{option}</option>
+                            ))}
+                          </select>
+                        </label>
+                      </div>
+                      <button
+                        type="button"
+                        onClick={() => applyPresetLocationFor(key)}
+                        disabled={!matched}
+                        className="rounded-full bg-mok-gold px-4 py-1 text-xs font-semibold text-black disabled:opacity-60"
+                      >
+                        {copy.helperDropdown.apply}
+                      </button>
+                      {matched && <p className="text-[11px] text-neutral-500">{presetNotice(matched)}</p>}
+                      <div>
+                        <p className="text-xs text-neutral-400">{copy.helperMapHint}</p>
+                        <LocationPickerMap
+                          latitude={Number.isFinite(mapLat) ? mapLat : DEFAULT_LOCATION.latitude}
+                          longitude={Number.isFinite(mapLon) ? mapLon : DEFAULT_LOCATION.longitude}
+                          onChange={(lat, lon) => handleMapUpdate(key, lat, lon)}
+                        />
+                      </div>
+                    </div>
+                  </div>
+                )
+              })}
             </div>
           )}
 
-          <div className="rounded-2xl border border-mok-goldDeep/30 bg-black/40 p-5 space-y-5">
-            <div className="flex flex-col gap-3 md:flex-row md:items-center md:justify-between">
-              <div>
-                <h2 className="text-sm font-semibold text-mok-gold">{copy.reading.title}</h2>
-                <p className="text-xs text-neutral-400">{copy.reading.subtitle}</p>
+          <div className="flex flex-col gap-3 md:flex-row md:items-center md:justify-between">
+            {displayLoading && <span className="text-xs text-neutral-400">{copy.loading}</span>}
+            <button
+              type="submit"
+              disabled={displayLoading}
+              className="rounded-full bg-mok-gold px-6 py-2 text-sm font-semibold text-black disabled:opacity-60"
+            >
+              {submitLabel}
+            </button>
+          </div>
+          {displayError && <p className="rounded-lg border border-red-500/40 bg-red-500/10 p-3 text-sm text-red-200">{displayError}</p>}
+        </form>
+      </section>
+
+      {mode === 'couple' ? (
+        <>
+          {showCoupleEmptyState && (
+            <p className="text-center text-sm text-neutral-500">{copy.empty}</p>
+          )}
+          {coupleResult && (
+            <section className="space-y-6">
+              <div className="grid gap-6 lg:grid-cols-2">
+                {PARTNER_KEYS.map(key => {
+                  const partnerResult = coupleResult[key]
+                  const labelFallback = key === 'partnerA' ? copy.relationship.partnerLabels.first : copy.relationship.partnerLabels.second
+                  const chart = coupleChartData ? coupleChartData[key] : null
+                  return (
+                    <div key={key} className="rounded-2xl border border-mok-goldDeep/40 bg-black/40 p-4 space-y-4">
+                      <div>
+                        <h2 className="text-sm font-semibold text-mok-gold">{labelFallback}</h2>
+                        <ul className="mt-3 space-y-1 text-xs text-neutral-300">
+                          <li>{partnerResult.metadata.birthDate} · {partnerResult.metadata.birthTime}</li>
+                          <li>{formatOffset(partnerResult.metadata.timezoneMinutes)} · lat {partnerResult.metadata.latitude.toFixed(4)}, lon {partnerResult.metadata.longitude.toFixed(4)}</li>
+                          <li>House: {partnerResult.metadata.houseSystem}</li>
+                        </ul>
+                      </div>
+                      <div className="flex flex-col gap-4 md:flex-row md:items-center">
+                        <NatalChartWheel planets={chart?.planets ?? []} houses={chart?.houses ?? []} ascDegree={partnerResult.ascendant?.degree}
+                        />
+                        <div className="space-y-3 text-xs text-neutral-300">
+                          {partnerResult.ascendant && (
+                            <div>
+                              <h3 className="text-sm font-semibold text-mok-gold">Ascendant</h3>
+                              <p className="text-base font-semibold text-white">{lang === 'en' ? partnerResult.ascendant.sign.en : partnerResult.ascendant.sign.my}</p>
+                              <p>{formatDMS(partnerResult.ascendant.formatted)}</p>
+                            </div>
+                          )}
+                          {partnerResult.midheaven && (
+                            <div>
+                              <h3 className="text-sm font-semibold text-mok-gold">Midheaven</h3>
+                              <p className="text-base font-semibold text-white">{lang === 'en' ? partnerResult.midheaven.sign.en : partnerResult.midheaven.sign.my}</p>
+                              <p>{formatDMS(partnerResult.midheaven.formatted)}</p>
+                            </div>
+                          )}
+                        </div>
+                      </div>
+                      <div className="grid gap-4 sm:grid-cols-2">
+                        <div className="rounded-2xl border border-mok-goldDeep/30 bg-black/30 p-3 overflow-x-auto">
+                          <h3 className="mb-2 text-xs font-semibold uppercase tracking-[0.3em] text-mok-gold">{copy.planetsTitle}</h3>
+                          <table className="w-full text-xs">
+                            <thead className="text-[10px] uppercase tracking-widest text-neutral-400">
+                              <tr>
+                                <th className="py-1 text-left">Planet</th>
+                                <th className="text-left">Sign</th>
+                                <th className="text-left">Degree</th>
+                              </tr>
+                            </thead>
+                            <tbody>
+                              {partnerResult.planets.map(planet => (
+                                <tr key={planet.key} className="border-t border-white/5">
+                                  <td className="py-1 font-medium text-white">{lang === 'en' ? planet.labelEn : planet.labelMy}</td>
+                                  <td>{lang === 'en' ? planet.sign.en : planet.sign.my}</td>
+                                  <td>{formatDMS(planet.absoluteFormatted)}</td>
+                                </tr>
+                              ))}
+                            </tbody>
+                          </table>
+                        </div>
+                        <div className="rounded-2xl border border-mok-goldDeep/30 bg-black/30 p-3 overflow-x-auto">
+                          <h3 className="mb-2 text-xs font-semibold uppercase tracking-[0.3em] text-mok-gold">{copy.housesTitle}</h3>
+                          <table className="w-full text-xs">
+                            <thead className="text-[10px] uppercase tracking-widest text-neutral-400">
+                              <tr>
+                                <th className="py-1 text-left">#</th>
+                                <th className="text-left">Sign</th>
+                                <th className="text-left">Degree</th>
+                              </tr>
+                            </thead>
+                            <tbody>
+                              {partnerResult.houses.map(house => (
+                                <tr key={house.number} className="border-t border-white/5">
+                                  <td className="py-1 font-semibold text-white">{house.number}</td>
+                                  <td>{lang === 'en' ? house.sign.en : house.sign.my}</td>
+                                  <td>{formatDMS(house.absoluteFormatted)}</td>
+                                </tr>
+                              ))}
+                            </tbody>
+                          </table>
+                        </div>
+                      </div>
+                      {partnerResult.warnings && partnerResult.warnings.length > 0 && (
+                        <div className="rounded-2xl border border-yellow-600/40 bg-yellow-500/10 p-3 text-xs text-yellow-100">
+                          <h4 className="mb-1 font-semibold uppercase tracking-widest text-[10px]">{copy.warningsTitle}</h4>
+                          <ul className="list-disc pl-4">
+                            {partnerResult.warnings.map((warn, idx) => (
+                              <li key={idx}>{warn}</li>
+                            ))}
+                          </ul>
+                        </div>
+                      )}
+                    </div>
+                  )
+                })}
               </div>
-              <span className="inline-flex items-center gap-2 rounded-full border border-mok-gold/40 px-3 py-1 text-xs text-mok-gold">
-                <span
-                  className={`h-2 w-2 rounded-full ${
-                    readingStatus === 'done'
-                      ? 'bg-emerald-400'
-                      : readingStatus === 'idle'
-                        ? 'bg-neutral-600'
-                        : 'bg-mok-gold animate-pulse'
-                  }`}
-                />
-                {copy.reading.status[readingStatus]}
-              </span>
-            </div>
-            {readingError && (
-              <p className="rounded-lg border border-red-500/30 bg-red-500/10 px-3 py-2 text-xs text-red-200">{readingError}</p>
-            )}
-            <div className="grid gap-5 lg:grid-cols-2">
-              <div className="space-y-3">
-                <h3 className="text-xs font-semibold uppercase tracking-[0.3em] text-mok-gold">{copy.reading.planetsTitle}</h3>
-                {planetInsights.length > 0 ? (
-                  <div className="grid gap-3 sm:grid-cols-2">
-                    {planetInsights.map(topic => (
-                      <InsightCard key={topic.id} topic={topic} />
-                    ))}
+
+              <div className="rounded-2xl border border-mok-goldDeep/30 bg-black/40 p-5 space-y-5">
+                <div className="flex flex-col gap-3 md:flex-row md:items-center md:justify-between">
+                  <div>
+                    <h2 className="text-sm font-semibold text-mok-gold">{copy.relationship.title}</h2>
+                    <p className="text-xs text-neutral-400">{copy.relationship.subtitle}</p>
                   </div>
-                ) : readingStatus === 'planets' ? (
-                  <InsightSkeleton />
-                ) : (
-                  <p className="text-sm text-neutral-500">{copy.reading.empty}</p>
-                )}
-              </div>
-              <div className="space-y-3">
-                <h3 className="text-xs font-semibold uppercase tracking-[0.3em] text-mok-gold">{copy.reading.housesTitle}</h3>
-                {houseInsights.length > 0 ? (
-                  <div className="grid gap-3 sm:grid-cols-2">
-                    {houseInsights.map(topic => (
-                      <InsightCard key={topic.id} topic={topic} />
-                    ))}
-                  </div>
-                ) : readingStatus === 'houses' ? (
-                  <InsightSkeleton />
-                ) : (
-                  <p className="text-sm text-neutral-500">{copy.reading.empty}</p>
-                )}
-              </div>
-            </div>
-            <div>
-              <h3 className="text-xs font-semibold uppercase tracking-[0.3em] text-mok-gold">{copy.reading.summaryTitle}</h3>
-              {readingSummary ? (
-                <div className="mt-3 rounded-2xl border border-mok-goldDeep/40 bg-gradient-to-r from-black/50 to-black/20 p-4">
-                  <p className="text-sm font-semibold text-white">{readingSummary.title}</p>
-                  <p className="mt-2 whitespace-pre-line text-sm text-neutral-200">{readingSummary.message}</p>
-                  {readingSummary.keywords && readingSummary.keywords.length > 0 && (
-                    <div className="mt-3 flex flex-wrap gap-2 text-[11px] text-mok-gold">
-                      {readingSummary.keywords.map((word, idx) => (
-                        <span key={`${word}-${idx}`} className="rounded-full border border-mok-gold/50 px-3 py-0.5">
-                          {word}
-                        </span>
+                  <span className="inline-flex items-center gap-2 rounded-full border border-mok-gold/40 px-3 py-1 text-xs text-mok-gold">
+                    <span
+                      className={`h-2 w-2 rounded-full ${
+                        relationshipStatus === 'done'
+                          ? 'bg-emerald-400'
+                          : relationshipStatus === 'idle'
+                            ? 'bg-neutral-600'
+                            : 'bg-mok-gold animate-pulse'
+                      }`}
+                    />
+                    {relationshipStatusText}
+                  </span>
+                </div>
+                {relationshipError && <p className="rounded-lg border border-red-500/30 bg-red-500/10 px-3 py-2 text-xs text-red-200">{relationshipError}</p>}
+                <div className="space-y-3">
+                  <h3 className="text-xs font-semibold uppercase tracking-[0.3em] text-mok-gold">{copy.relationship.topicsTitle}</h3>
+                  {relationshipTopics.length > 0 ? (
+                    <div className="grid gap-3 lg:grid-cols-2">
+                      {relationshipTopics.map(topic => (
+                        <InsightCard key={topic.id} topic={topic} />
                       ))}
                     </div>
+                  ) : relationshipStatus === 'loading' ? (
+                    <InsightSkeleton />
+                  ) : (
+                    <p className="text-sm text-neutral-500">{copy.relationship.subtitle}</p>
                   )}
                 </div>
-              ) : readingStatus === 'houses' ? (
-                <SummarySkeleton />
-              ) : (
-                <p className="mt-2 text-sm text-neutral-500">{copy.reading.summaryEmpty}</p>
+                <div>
+                  <h3 className="text-xs font-semibold uppercase tracking-[0.3em] text-mok-gold">{copy.relationship.summaryTitle}</h3>
+                  {relationshipSummary ? (
+                    <div className="mt-3 rounded-2xl border border-mok-goldDeep/40 bg-gradient-to-r from-black/50 to-black/20 p-4">
+                      <p className="text-sm font-semibold text-white">{relationshipSummary.title}</p>
+                      <p className="mt-2 whitespace-pre-line text-sm text-neutral-200">{relationshipSummary.message}</p>
+                      {relationshipSummary.keywords && relationshipSummary.keywords.length > 0 && (
+                        <div className="mt-3 flex flex-wrap gap-2 text-[11px] text-mok-gold">
+                          {relationshipSummary.keywords.map((word, idx) => (
+                            <span key={`${word}-${idx}`} className="rounded-full border border-mok-gold/50 px-3 py-0.5">
+                              {word}
+                            </span>
+                          ))}
+                        </div>
+                      )}
+                    </div>
+                  ) : relationshipStatus === 'loading' ? (
+                    <SummarySkeleton />
+                  ) : (
+                    <p className="mt-2 text-sm text-neutral-500">{copy.reading.summaryEmpty}</p>
+                  )}
+                </div>
+              </div>
+            </section>
+          )}
+        </>
+      ) : (
+        <>
+          {showSingleEmptyState && (
+            <p className="text-center text-sm text-neutral-500">{copy.empty}</p>
+          )}
+          {activeResult && (
+            <section className="space-y-6">
+              <div className="grid gap-4 md:grid-cols-3">
+                <div className="rounded-2xl border border-mok-goldDeep/40 bg-black/40 p-4">
+                  <h2 className="text-sm font-semibold text-mok-gold">{copy.resultTitle}</h2>
+                  <ul className="mt-3 space-y-1 text-xs text-neutral-300">
+                    <li>{activeResult.metadata.birthDate} · {activeResult.metadata.birthTime}</li>
+                    <li>{formatOffset(activeResult.metadata.timezoneMinutes)} · lat {activeResult.metadata.latitude.toFixed(4)}, lon {activeResult.metadata.longitude.toFixed(4)}</li>
+                    <li>House: {activeResult.metadata.houseSystem}</li>
+                  </ul>
+                </div>
+                {activeResult.ascendant && (
+                  <div className="rounded-2xl border border-mok-goldDeep/40 bg-black/40 p-4">
+                    <h3 className="text-sm font-semibold text-mok-gold">Ascendant</h3>
+                    <p className="text-lg font-semibold text-white">{lang === 'en' ? activeResult.ascendant.sign.en : activeResult.ascendant.sign.my}</p>
+                    <p className="text-xs text-neutral-400">{formatDMS(activeResult.ascendant.formatted)}</p>
+                  </div>
+                )}
+                {activeResult.midheaven && (
+                  <div className="rounded-2xl border border-mok-goldDeep/40 bg-black/40 p-4">
+                    <h3 className="text-sm font-semibold text-mok-gold">Midheaven</h3>
+                    <p className="text-lg font-semibold text-white">{lang === 'en' ? activeResult.midheaven.sign.en : activeResult.midheaven.sign.my}</p>
+                    <p className="text-xs text-neutral-400">{formatDMS(activeResult.midheaven.formatted)}</p>
+                  </div>
+                )}
+              </div>
+
+              <div className="grid gap-6 md:grid-cols-2">
+                <div className="rounded-2xl border border-mok-goldDeep/30 bg-black/30 p-4">
+                  <h2 className="mb-3 text-sm font-semibold text-mok-gold">{copy.chartTitle}</h2>
+                  <NatalChartWheel planets={activeChartPlanets} houses={activeHouseLines} ascDegree={activeResult.ascendant?.degree}
+                  />
+                </div>
+                <div className="rounded-2xl border border-mok-goldDeep/30 bg-black/30 p-4 overflow-x-auto">
+                  <h2 className="mb-3 text-sm font-semibold text-mok-gold">{copy.planetsTitle}</h2>
+                  <table className="w-full text-sm">
+                    <thead className="text-xs uppercase tracking-widest text-neutral-400">
+                      <tr>
+                        <th className="py-2 text-left">Planet</th>
+                        <th className="text-left">Sign</th>
+                        <th className="text-left">Degree</th>
+                        <th className="text-left">Rx</th>
+                      </tr>
+                    </thead>
+                    <tbody>
+                      {activeResult.planets.map(planet => (
+                        <tr key={planet.key} className="border-t border-white/5 text-sm">
+                          <td className="py-2 font-medium text-white">{lang === 'en' ? planet.labelEn : planet.labelMy}</td>
+                          <td>{lang === 'en' ? planet.sign.en : planet.sign.my}</td>
+                          <td>{formatDMS(planet.absoluteFormatted)}</td>
+                          <td>{planet.retrograde ? '℞' : ''}</td>
+                        </tr>
+                      ))}
+                    </tbody>
+                  </table>
+                </div>
+              </div>
+
+              <div className="rounded-2xl border border-mok-goldDeep/30 bg-black/30 p-4 overflow-x-auto">
+                <h2 className="mb-3 text-sm font-semibold text-mok-gold">{copy.housesTitle}</h2>
+                <table className="w-full text-sm">
+                  <thead className="text-xs uppercase tracking-widest text-neutral-400">
+                    <tr>
+                      <th className="py-2 text-left">#</th>
+                      <th className="text-left">Sign</th>
+                      <th className="text-left">Degree</th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {activeResult.houses.map(house => (
+                      <tr key={house.number} className="border-t border-white/5 text-sm">
+                        <td className="py-2 font-semibold text-white">{house.number}</td>
+                        <td>{lang === 'en' ? house.sign.en : house.sign.my}</td>
+                        <td>{formatDMS(house.absoluteFormatted)}</td>
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
+              </div>
+
+              {activeResult.warnings && activeResult.warnings.length > 0 && (
+                <div className="rounded-2xl border border-yellow-600/40 bg-yellow-500/10 p-4 text-sm text-yellow-100">
+                  <h3 className="mb-2 font-semibold uppercase tracking-widest text-xs">{copy.warningsTitle}</h3>
+                  <ul className="list-disc pl-5">
+                    {activeResult.warnings.map((warn, idx) => (
+                      <li key={idx}>{warn}</li>
+                    ))}
+                  </ul>
+                </div>
               )}
-            </div>
-          </div>
-        </section>
+
+              <div className="rounded-2xl border border-mok-goldDeep/30 bg-black/40 p-5 space-y-5">
+                <div className="flex flex-col gap-3 md:flex-row md:items-center md:justify-between">
+                  <div>
+                    <h2 className="text-sm font-semibold text-mok-gold">{copy.reading.title}</h2>
+                    <p className="text-xs text-neutral-400">{copy.reading.subtitle}</p>
+                  </div>
+                  <span className="inline-flex items-center gap-2 rounded-full border border-mok-gold/40 px-3 py-1 text-xs text-mok-gold">
+                    <span
+                      className={`h-2 w-2 rounded-full ${
+                        activeReading.status === 'done'
+                          ? 'bg-emerald-400'
+                          : activeReading.status === 'idle'
+                            ? 'bg-neutral-600'
+                            : 'bg-mok-gold animate-pulse'
+                      }`}
+                    />
+                    {singleStatusText}
+                  </span>
+                </div>
+                {activeReading.error && (
+                  <p className="rounded-lg border border-red-500/30 bg-red-500/10 px-3 py-2 text-xs text-red-200">{activeReading.error}</p>
+                )}
+                <div className="grid gap-5">
+                  <div className="space-y-3">
+                    <h3 className="text-xs font-semibold uppercase tracking-[0.3em] text-mok-gold">{copy.reading.planetsTitle}</h3>
+                    {activeReading.planetInsights.length > 0 ? (
+                      <div className="grid gap-3 sm:grid-cols-2">
+                        {activeReading.planetInsights.map(topic => (
+                          <InsightCard key={topic.id} topic={topic} />
+                        ))}
+                      </div>
+                    ) : activeReading.status === 'planets' ? (
+                      <InsightSkeleton />
+                    ) : (
+                      <p className="text-sm text-neutral-500">{copy.reading.empty}</p>
+                    )}
+                  </div>
+                  <div className="space-y-3">
+                    <h3 className="text-xs font-semibold uppercase tracking-[0.3em] text-mok-gold">{copy.reading.housesTitle}</h3>
+                    {activeReading.houseInsights.length > 0 ? (
+                      <div className="grid gap-3 sm:grid-cols-2">
+                        {activeReading.houseInsights.map(topic => (
+                          <InsightCard key={topic.id} topic={topic} />
+                        ))}
+                      </div>
+                    ) : activeReading.status === 'houses' ? (
+                      <InsightSkeleton />
+                    ) : (
+                      <p className="text-sm text-neutral-500">{copy.reading.empty}</p>
+                    )}
+                  </div>
+                </div>
+                <div>
+                  <h3 className="text-xs font-semibold uppercase tracking-[0.3em] text-mok-gold">{copy.reading.summaryTitle}</h3>
+                  {activeReading.summary ? (
+                    <div className="mt-3 rounded-2xl border border-mok-goldDeep/40 bg-gradient-to-r from-black/50 to-black/20 p-4">
+                      <p className="text-sm font-semibold text-white">{activeReading.summary.title}</p>
+                      <p className="mt-2 whitespace-pre-line text-sm text-neutral-200">{activeReading.summary.message}</p>
+                      {activeReading.summary.keywords && activeReading.summary.keywords.length > 0 && (
+                        <div className="mt-3 flex flex-wrap gap-2 text-[11px] text-mok-gold">
+                          {activeReading.summary.keywords.map((word, idx) => (
+                            <span key={`${word}-${idx}`} className="rounded-full border border-mok-gold/50 px-3 py-0.5">
+                              {word}
+                            </span>
+                          ))}
+                        </div>
+                      )}
+                    </div>
+                  ) : activeReading.status === 'houses' ? (
+                    <SummarySkeleton />
+                  ) : (
+                    <p className="mt-2 text-sm text-neutral-500">{copy.reading.summaryEmpty}</p>
+                  )}
+                </div>
+              </div>
+            </section>
+          )}
+        </>
       )}
     </div>
   )

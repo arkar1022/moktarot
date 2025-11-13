@@ -4,6 +4,7 @@ import { logError, logInfo, reqMeta } from '@/lib/log'
 
 type Lang = 'my' | 'en'
 type Phase = 'planets' | 'houses'
+type ReadingContext = 'self' | 'other' | 'couple'
 
 type NatalMetadata = {
   birthDate: string
@@ -59,10 +60,38 @@ type ReadingSummary = {
 }
 
 type ReadingResponse = {
+  context: Extract<ReadingContext, 'self' | 'other'>
   phase: Phase
   topics: ReadingTopic[]
   summary?: ReadingSummary
-  source: 'ai' | 'fallback'
+  source: 'ai'
+}
+
+type RelationshipTopic = {
+  id: string
+  title: string
+  focus: string
+  message: string
+  keywords: string[]
+}
+
+type CoupleResponse = {
+  context: 'couple'
+  topics: RelationshipTopic[]
+  summary?: ReadingSummary
+  source: 'ai'
+}
+
+type Gender = 'male' | 'female' | 'nonbinary' | 'unspecified'
+
+type PartnerPayload = {
+  label: string
+  gender: Gender
+  metadata: NatalMetadata
+  planets: PlanetDescriptor[]
+  houses: HouseDescriptor[]
+  asc?: ChartPoint | null
+  mid?: ChartPoint | null
 }
 
 type PromptBundle = {
@@ -143,6 +172,109 @@ const HOUSE_THEMES: Record<number, { focus: Record<Lang, string>; keywords: Reco
  10: { focus: { en: 'Career & reputation', my: 'အလုပ်အကိုင်နှင့် ကောင်းတင့်သရော်' }, keywords: { en: ['career','status'], my: ['အလုပ်အကိုင်','ဂုဏ်သိက္ခာ'] } },
  11: { focus: { en: 'Networks & aspirations', my: 'မိတ်ဆွေကွန်ယက်နှင့် အလားအလာ' }, keywords: { en: ['friends','future'], my: ['မိတ်ဆွေ','အနာဂတ်'] } },
  12: { focus: { en: 'Inner world & healing', my: 'အတွင်းဗိမာန်နှင့် ကုထုံး' }, keywords: { en: ['spirit','healing'], my: ['ဝိညာဉ်','ကုထုံး'] } }
+}
+
+const COUPLE_TOPIC_BLUEPRINTS = [
+  {
+    id: 'love_life',
+    label: { en: 'Love life & chemistry', my: 'ချစ်ရေးနှင့် ဆက်ဆံမှု' },
+    focus: { en: 'How romance and attraction naturally unfold', my: 'ချစ်ရေးဆက်ဆံမှု ဘယ်လို ဖြောင့်မတ်တက်နေတာ' },
+    keywords: { en: ['romance','chemistry'], my: ['ချစ်ရေး','ဆက်ဆံမှု'] },
+    hint: 'Describe intimacy style, affection needs, and how they warm up to each other.'
+  },
+  {
+    id: 'communication',
+    label: { en: 'Communication flow', my: 'ဆက်သွယ်ပုံစံ' },
+    focus: { en: 'Words, listening, and mental pacing', my: 'စကားဆက်ခြင်း၊ နားထောင်ပေးမှုနှင့် စိတ်ပိုင်းညီညွတ်မှု' },
+    keywords: { en: ['dialogue','listening'], my: ['ပြောဆိုမှု','နားထောင်မှု'] },
+    hint: 'Highlight tone, speed, and tips for feeling heard.'
+  },
+  {
+    id: 'strengths',
+    label: { en: 'Shared strengths', my: 'အတူရှိသော အားသာချက်' },
+    focus: { en: 'The reliability and gifts they bring out in each other', my: 'တစ်ဦးနှင့်တစ်ဦး တိုးတက်စေသော အားသာချက်များ' },
+    keywords: { en: ['strengths','gifts'], my: ['အားသာချက်','ကောင်းချီး'] },
+    hint: 'Celebrate natural wins they should lean on.'
+  },
+  {
+    id: 'weaknesses',
+    label: { en: 'Tender spots', my: 'အားနည်းချက်များ' },
+    focus: { en: 'Places that need gentleness or healthier boundaries', my: 'နူးညံ့မှုလိုအပ်သော နေရာများ' },
+    keywords: { en: ['awareness','patience'], my: ['သတိပြု','သူနာပြုမှု'] },
+    hint: 'Name habits that can bruise the bond.'
+  },
+  {
+    id: 'threats',
+    label: { en: 'Pressure points', my: 'ဖိအားပေးရာနေရာ' },
+    focus: { en: 'External or internal stressors that could derail them', my: 'အပြင်/အတွင်း ဖိအားပေးသူများ' },
+    keywords: { en: ['threats','pressure'], my: ['ခြိမ်းခြောက်မှု','ဖိအား'] },
+    hint: 'Offer proactive guarding tips.'
+  },
+  {
+    id: 'emotional_safety',
+    label: { en: 'Emotional safety', my: 'ခံစားချက် လုံခြုံရေး' },
+    focus: { en: 'How they soothe, reassure, and hold space', my: 'အပြန်အလှန် မည်သို့ ပြေပေးကြသလဲ' },
+    keywords: { en: ['care','warmth'], my: ['ဂရုစိုက်မှု','နွေးထွေးမှု'] },
+    hint: 'Explain how to keep hearts open.'
+  },
+  {
+    id: 'growth',
+    label: { en: 'Growth & vision', my: 'တိုးတက်ရေးနှင့် အမြင်' },
+    focus: { en: 'Shared dreams, learning edges, future focus', my: 'အတူတကွ အကောင်းမြင်ကွင်းများနှင့် တိုးတက်မှု' },
+    keywords: { en: ['future','growth'], my: ['အနာဂတ်','တိုးတက်မှု'] },
+    hint: 'Tie to big goals or legacy.'
+  },
+  {
+    id: 'conflict',
+    label: { en: 'Conflict repair', my: 'အငြင်းပြန်လည် ပြုပြင်ခြင်း' },
+    focus: { en: 'How they fight, cool off, and heal ruptures', my: 'အငြင်းပွားသည့်အခါ ပြန်ကြားနားလည်ပုံ' },
+    keywords: { en: ['conflict','repair'], my: ['အငြင်းပွားမှု','ပြန်လည်ပြုပြင်'] },
+    hint: 'Offer steps for fast repair.'
+  },
+  {
+    id: 'values',
+    label: { en: 'Values & lifestyle', my: 'တန်ဖိုးနှင့် ဘဝပုံစံ' },
+    focus: { en: 'Practical matters, money, family, routines', my: 'နေ့စဉ်ဘဝ၊ ငွေကြေး၊ မိသားစုသဘောထား' },
+    keywords: { en: ['values','lifestyle'], my: ['တန်ဖိုး','ဘဝပုံစံ'] },
+    hint: 'Note alignment gaps or harmonies.'
+  },
+  {
+    id: 'support',
+    label: { en: 'Support & care', my: 'အထောက်အပံ့နှင့် ဂရုစိုက်မှု' },
+    focus: { en: 'How they advocate for each other in public/private', my: 'အများကြီး/အထူးနေရာတွင် တစ်ဦးကိုတစ်ဦး မည်သို့ ကူညီပေးသလဲ' },
+    keywords: { en: ['support','allyship'], my: ['အထောက်အပံ့','မိတ်ဖက်မှု'] },
+    hint: 'Encourage rituals of care.'
+  },
+  {
+    id: 'adventure',
+    label: { en: 'Play & adventure', my: 'ပျော်စရာနှင့် စွန့်စားမှု' },
+    focus: { en: 'Fun, novelty, and rituals that keep sparks alive', my: 'ပျော်ရွှင်မှု၊ အသစ်စမ်းသပ်မှု' },
+    keywords: { en: ['play','spark'], my: ['ကစားမှု','စိတ်လှုပ်ရှားမှု'] },
+    hint: 'Suggest ways to keep things lively.'
+  }
+] as const
+const GENDER_TEXT: Record<Gender, { en: string; my: string }> = {
+  male: { en: 'male', my: 'ယောက်ျာ' },
+  female: { en: 'female', my: 'မ' },
+  nonbinary: { en: 'non-binary', my: 'အမျိုးအစားမသတ်မှတ်' },
+  unspecified: { en: 'unspecified', my: 'မသတ်မှတ်' }
+}
+
+type PronounSet = { subject: string; object: string; possessive: string }
+
+const PRONOUNS: Record<Lang, Record<Gender, PronounSet>> = {
+  en: {
+    male: { subject: 'he', object: 'him', possessive: 'his' },
+    female: { subject: 'she', object: 'her', possessive: 'her' },
+    nonbinary: { subject: 'they', object: 'them', possessive: 'their' },
+    unspecified: { subject: 'they', object: 'them', possessive: 'their' }
+  },
+  my: {
+    male: { subject: 'he', object: 'him', possessive: 'his' },
+    female: { subject: 'she', object: 'her', possessive: 'her' },
+    nonbinary: { subject: 'they', object: 'them', possessive: 'their' },
+    unspecified: { subject: 'they', object: 'them', possessive: 'their' }
+  }
 }
 
 function formatOffset(minutes: number) {
@@ -247,7 +379,24 @@ function normalizePoint(raw: any, id: ChartPoint['id'], labelEn: string, labelMy
   return { id, labelEn, labelMy, signEn, signMy, degree }
 }
 
+function normalizePartner(raw: any, lang: Lang): PartnerPayload | null {
+  const metadata = normalizeMetadata(raw?.metadata)
+  const planets = normalizePlanets(raw?.planets)
+  const houses = normalizeHouses(raw?.houses)
+  if (!metadata || !planets.length || !houses.length) return null
+  return {
+    label: sanitizeLabel(raw?.label, lang),
+    gender: normalizeGender(raw?.gender),
+    metadata,
+    planets,
+    houses,
+    asc: normalizePoint(raw?.ascendant, 'ascendant', 'Ascendant', 'လာဂျ') || null,
+    mid: normalizePoint(raw?.midheaven, 'midheaven', 'Midheaven', 'မိတ်ထွန်း') || null
+  }
+}
+
 function buildPrompt(args: {
+  context: Extract<ReadingContext, 'self' | 'other'>
   phase: Phase
   metadata: NatalMetadata
   planets: PlanetDescriptor[]
@@ -256,8 +405,9 @@ function buildPrompt(args: {
   mid?: ChartPoint | null
   language: Lang
   label: string
+  gender?: Gender
 }): PromptBundle {
-  const { phase, metadata, planets, houses, asc, mid, language, label } = args
+  const { context, phase, metadata, planets, houses, asc, mid, language, label, gender = 'unspecified' } = args
   const name = label || DEFAULT_NAME[language]
   const header = [
     `Client: ${name}`,
@@ -267,18 +417,36 @@ function buildPrompt(args: {
   ]
   const planetLines = planets.map((planet, idx) => {
     const rx = planet.retrograde ? 'retrograde' : 'direct'
-    return `${idx + 1}. id=${planet.id}; ${planet.labelEn}/${planet.labelMy}; sign=${planet.signEn}/${planet.signMy}; degree=${planet.degree}; motion=${rx}`
+    return `${idx + 1}. id=${planet.id}; name=${planet.labelEn}; sign=${planet.signEn}; degree=${planet.degree}; motion=${rx}`
   })
-  const houseLines = houses.map(h => `${h.number}. id=${h.id}; sign=${h.signEn}/${h.signMy}; degree=${h.degree}`)
-  const points = [asc, mid].filter(Boolean).map(point => `${(point as ChartPoint).labelEn}/${(point as ChartPoint).labelMy}: ${(point as ChartPoint).signEn}/${(point as ChartPoint).signMy} at ${(point as ChartPoint).degree}`)
+  const houseLines = houses.map(h => `${h.number}. id=${h.id}; sign=${h.signEn}; degree=${h.degree}`)
+  const points = [asc, mid].filter(Boolean).map(point => `${(point as ChartPoint).labelEn}: ${(point as ChartPoint).signEn} at ${(point as ChartPoint).degree}`)
 
+  const isOther = context === 'other'
+  const pronounSet = isOther ? getPronouns(gender, language) : null
   const statusLine = phase === 'planets'
-    ? (language === 'en'
-        ? 'Describe how each planet shapes the native. Mention life areas (identity, money, relationships, etc).'
-        : 'ဂြိုလ်တစ်လုံးစီ၏ သက်ရောက်မှုကို အကျဉ်းချုံး ဖော်ပြပါ။ ကိုယ်ပိုင်ရေးရာ၊ ငွေကြေး၊ ဆက်ဆံရေး စသည့် ဘဝကဏ္ဍများကို ထည့်သွင်းပါ။')
-    : (language === 'en'
-        ? 'Interpret each house cusp. Show how the sign/degree colors real-life focus. After the 12 houses, deliver a concise summary weaving repeating motifs plus 2-3 actionable reminders.'
-        : 'အိမ်စွန်းတိုင်း၏ အဓိပ္ပါယ်ကို ဆန်းစစ်ရေးသားပါ။ ရာသီနှင့် ဒီဂရီက ဘဝရည်ရွယ်ချက်ကို ဘယ်လို သွင်ပြင်ပေးသည်ကို ရှင်းပြပါ။ အိမ် ၁၂ ခု ပြီးလျှင် ထပ်တူထပ်ရော ပုံစံများကို ပြန်ရောပြီး လက်တွေ့ဆောင်ရန် အစုလိုက်အသေးစား အကြံပြုချက် ၂-၃ ချက်ပါသော အနှုတ်ချုပ် တစ်ပိုဒ် ထည့်ပါ။')
+    ? (isOther
+        ? 'For each planet, outline this person’s character, what they enjoy or avoid, one strength, one weakness, and finish with a tip on how to approach or communicate with them.'
+        : 'Describe how each planet shapes the native. Mention life areas (identity, money, relationships, etc).')
+    : (isOther
+        ? 'For each house cusp, describe this person’s strengths, blind spots, relationship style, and actionable ways to support or communicate with them. After the houses, deliver a summary plus 2-3 connecting tips.'
+        : 'Interpret each house cusp. Show how the sign/degree colors real-life focus. After the 12 houses, deliver a concise summary weaving repeating motifs plus 2-3 actionable reminders.')
+
+  const responseLanguageLine = language === 'en'
+    ? 'Respond in English with a grounded, poetic-but-practical voice. Each topic should run at least three complete sentences.'
+    : 'Respond in natural Burmese (Unicode) with a grounded, poetic-but-practical voice. Each topic should run at least three complete sentences; avoid transliterations or code-mixed English.'
+
+  const pronounInstruction = pronounSet
+    ? `Write in third person using the pronouns "${pronounSet.subject}/${pronounSet.object}/${pronounSet.possessive}" and never address the person as "you".`
+    : null
+
+  const otherGuidance = isOther
+    ? [
+        'Reveal who this person is: their temperament, what they value, and how they tend to behave with others.',
+        'Every topic must include at least one clear strength and one clear weakness.',
+        'State what they enjoy or avoid plus a concrete tip on how to approach or communicate with them.'
+      ]
+    : []
 
   const formatGuide = [
     'Return JSON only with this shape:',
@@ -286,12 +454,13 @@ function buildPrompt(args: {
       ? `{"topics":[{"id":"","title":"","focus":"","message":"","keywords":["",""]}] }`
       : `{"topics":[{"id":"","title":"","focus":"","message":"","keywords":["",""]}],"summary":{"title":"","message":"","keywords":["",""]}}`,
     `Use these topic ids exactly: ${(phase === 'planets' ? planets : houses).map(item => item.id).join(', ')}.`,
-    'Each message should be 2–3 sentences, practical and poetic but not flowery. Keywords should be <=3 short phrases.'
-  ]
+    'Keep each message concise (roughly 2 short paragraphs) and practical. Keywords should be <=3 short phrases.',
+    responseLanguageLine,
+    ...otherGuidance,
+    pronounInstruction
+  ].filter(Boolean) as string[]
 
-  const system = language === 'en'
-    ? 'You are MokTarot’s seasoned Burmese astrologer. Speak in confident, warm English with a grounded male voice.'
-    : 'သင်သည် MokTarot ၏ ဇာတာရှင်အဖြစ် သက်တမ်းကြာသော မြန်မာ ဂြိုလ်ချတ်ဖော်သူဖြစ်သည်။ ရိုးရိုးမြန်မာဘာသာဖြင့် ယောကျ်ားသံတစ်သံ နွေးထွေးသော်လည်း တိကျစွာ ရေးသားပါ။'
+  const system = 'You are MokTarot’s seasoned Burmese astrologer. Keep the guidance warm, grounded, and rooted in real life.'
 
   const user = [
     statusLine,
@@ -309,37 +478,120 @@ function buildPrompt(args: {
   return { system, user }
 }
 
-async function askOpenAI(bundle: PromptBundle) {
-  const key = process.env.OPENAI_API_KEY
-  if (!key) return null
-  const model = (process.env.OPENAI_MODEL || 'gpt-4o-mini').trim() || 'gpt-4o-mini'
-  try {
-    const res = await fetch('https://api.openai.com/v1/chat/completions', {
-      method: 'POST',
-      headers: {
-        'Content-Type': 'application/json',
-        Authorization: `Bearer ${key}`
-      },
-      body: JSON.stringify({
-        model,
-        temperature: 0.85,
-        response_format: { type: 'json_object' },
-        messages: [
-          { role: 'system', content: bundle.system },
-          { role: 'user', content: bundle.user }
-        ]
-      })
+function buildCouplePrompt({ partners, language }: { partners: PartnerPayload[]; language: Lang }): PromptBundle {
+  const topicIds = COUPLE_TOPIC_BLUEPRINTS.map(topic => topic.id).join(', ')
+  const topicHints = COUPLE_TOPIC_BLUEPRINTS.map(topic => `${topic.id}: ${topic.hint}`).join('\n')
+  const system = 'You are MokTarot’s seasoned Burmese astrologer. Interpret compatibility with warmth, grounded pragmatism, and poetic clarity.'
+
+  const responseLanguageLine = language === 'en'
+    ? 'Respond only in English with a grounded, poetic-but-practical voice.'
+    : 'Respond only in natural Burmese (Unicode). Use Myanmar script, keep the tone warm, grounded, and practical, and avoid transliteration or English fillers unless it is a name.'
+
+  const detailInstruction = language === 'en'
+    ? 'Each topic message must be at least four full sentences (roughly two short paragraphs) weaving observation plus advice.'
+    : 'ခေါင်းစဉ်တစ်ခုစီတွင် ဗျာဥ်းချပြီး စိတ်ခံစားချက်နှင့် လက်တွေ့ အကြံပြုချက်ပေါင်းစပ်သည့် ဝါကျပေါင်း လေးခုပေါ်မူတည်သော အပိုဒ်၂ခုခန့် ရေးပါ။'
+
+  const summaryInstruction = language === 'en'
+    ? 'Summary message must be at least three sentences and end with two actionable next steps separated by semicolons.'
+    : 'အနှုတ်ချုပ်စာပိုဒ်တွင် ဝါကျသုံးခုအနည်းဆုံး ပါဝင်စေရန်နှင့် အဆုံးတွင် လက်တွေ့ဆောင်ရွက်လို့ရသည့် အဆင့်နှစ်ခုကို ဆက်စပ်အကြံပေးချက်အဖြစ် ထည့်သွင်းပါ။'
+
+  const specificityInstruction = 'Anchor every topic in concrete chart details: cite planet/sign/house placements for each partner and mention both names whenever possible.'
+  const templateWarning = 'Write original language that fits the data; never reuse template phrases such as "shared ritual" or copy the hint wording.'
+  const hintUsageInstruction = 'Hints are for your reference only. Do not quote them verbatim or mirror their structure.'
+
+  const baseInstructions = [
+    'Blend both charts to explain how the duo connects, clashes, and grows.',
+    'Return JSON only with this shape: {"topics":[{"id":"","title":"","focus":"","message":"","keywords":["",""]}],"summary":{"title":"","message":"","keywords":["",""]}}',
+    `Use these topic ids exactly (keep order): ${topicIds}.`,
+    detailInstruction,
+    summaryInstruction,
+    'Each topic still needs <=3 short keywords tied to tangible behavior.',
+    specificityInstruction,
+    templateWarning,
+    responseLanguageLine,
+    hintUsageInstruction,
+    'Hints (for reference only; never echo them):',
+    topicHints
+  ]
+
+  const partnerBlocks = partners.map((partner, idx) => {
+    const header = [
+      `Partner ${idx + 1}: ${partner.label} (${genderLabel(partner.gender, 'en')})`,
+      `Birth: ${partner.metadata.birthDate} ${partner.metadata.birthTime} (${formatOffset(partner.metadata.timezoneMinutes)})`,
+      `Location: lat ${partner.metadata.latitude.toFixed(2)}, lon ${partner.metadata.longitude.toFixed(2)}`,
+      `House system: ${partner.metadata.houseSystem}`
+    ]
+    const planetRows = partner.planets.map((planet, planetIdx) => {
+      const rx = planet.retrograde ? 'retrograde' : 'direct'
+      return `${planetIdx + 1}. ${planet.labelEn}; sign=${planet.signEn}; degree=${planet.degree}; motion=${rx}`
     })
-    const json = await res.json().catch(() => ({}))
-    const content = json?.choices?.[0]?.message?.content
-    if (res.ok && typeof content === 'string') return content
-  } catch (err) {
-    logError('NATAL_READING_OPENAI', {}, err)
-  }
-  return null
+    const houseRows = partner.houses.map(house => `${house.number}. ${house.signEn}; degree=${house.degree}`)
+    const angleRows = [partner.asc, partner.mid].filter(Boolean).map(point => `${(point as ChartPoint).labelEn}: ${(point as ChartPoint).signEn} @ ${(point as ChartPoint).degree}`)
+    return [
+      header.join(' · '),
+      '',
+      `Partner ${idx + 1} planets:`,
+      ...planetRows,
+      '',
+      `Partner ${idx + 1} houses:`,
+      ...houseRows,
+      '',
+      angleRows.length ? `Angles: ${angleRows.join(' | ')}` : ''
+    ].filter(Boolean).join('\n')
+  })
+
+  const user = [
+    ...baseInstructions,
+    '',
+    'DATA:',
+    partnerBlocks.join('\n\n---\n\n')
+  ].join('\n')
+
+  return { system, user }
 }
 
-async function askGemini(bundle: PromptBundle) {
+function shapeCoupleResponse(args: { aiText: string | null; lang: Lang }): CoupleResponse {
+  const { aiText, lang } = args
+  if (!aiText) throw new Error('AI response missing.')
+  const parsed = extractJson(aiText)
+  if (!parsed || typeof parsed !== 'object') throw new Error('AI response malformed.')
+
+  if (!Array.isArray(parsed.topics)) {
+    throw new Error('AI did not return couple topics.')
+  }
+
+  const topics = COUPLE_TOPIC_BLUEPRINTS.map(template => {
+    const candidate = parsed.topics.find((entry: any) => typeof entry?.id === 'string' && entry.id.toLowerCase() === template.id)
+    if (!candidate) {
+      throw new Error(`AI topic missing: ${template.id}`)
+    }
+    const title = typeof candidate.title === 'string' && candidate.title.trim()
+      ? candidate.title.trim().slice(0, lang === 'en' ? 90 : 120)
+      : null
+    const focus = typeof candidate.focus === 'string' && candidate.focus.trim()
+      ? candidate.focus.trim().slice(0, lang === 'en' ? 100 : 140)
+      : null
+    const message = typeof candidate.message === 'string' && candidate.message.trim()
+      ? candidate.message.trim().slice(0, 700)
+      : null
+    if (!title || !focus || !message) {
+      throw new Error(`AI topic incomplete: ${template.id}`)
+    }
+    const keywords = normalizeKeywords(candidate.keywords, lang)
+    return { id: template.id, title, focus, message, keywords }
+  })
+
+  const summary = extractSummary(parsed.summary, lang) || undefined
+
+  return {
+    context: 'couple',
+    topics,
+    summary,
+    source: 'ai'
+  }
+}
+
+async function askGemini(bundle: PromptBundle, trace: Record<string, any> = {}) {
   const key = process.env.GEMINI_API_KEY
   if (!key) return null
   const model = (process.env.GEMINI_MODEL || 'gemini-2.5-flash').trim()
@@ -361,9 +613,25 @@ async function askGemini(bundle: PromptBundle) {
     })
     const json = await res.json().catch(() => ({}))
     const text = json?.candidates?.[0]?.content?.parts?.[0]?.text
-    if (res.ok && typeof text === 'string') return text
+    if (!res.ok) {
+      logError(
+        'NATAL_GEMINI_HTTP',
+        { ...trace, status: res.status, statusText: res.statusText, promptFeedback: json?.promptFeedback, response: summarizeGeminiResponse(json) },
+        new Error(json?.error?.message || 'Gemini HTTP error')
+      )
+      return null
+    }
+    if (typeof text !== 'string') {
+      logError(
+        'NATAL_GEMINI_EMPTY_TEXT',
+        { ...trace, status: res.status, promptFeedback: json?.promptFeedback, response: summarizeGeminiResponse(json) },
+        new Error('Gemini returned no text payload')
+      )
+      return null
+    }
+    return text
   } catch (err) {
-    logError('NATAL_READING_GEMINI', {}, err)
+    logError('NATAL_READING_GEMINI', trace, err)
   }
   return null
 }
@@ -398,107 +666,107 @@ function normalizeKeywords(value: any, lang: Lang): string[] {
     .map(entry => entry.slice(0, lang === 'en' ? 28 : 36))
 }
 
-function buildFallbackTopic(descriptor: PlanetDescriptor | HouseDescriptor, lang: Lang): ReadingTopic {
-  if ('retrograde' in descriptor) {
-    const planet = descriptor as PlanetDescriptor
-    const theme = PLANET_THEMES[planet.id as typeof PLANET_ORDER[number]] || PLANET_THEMES.sun
-    const focus = theme.focus[lang]
-    const keywords = theme.keywords[lang]
-    const retro = planet.retrograde
-      ? (lang === 'en' ? 'retrograde introspection' : 'ပြန်လည်သုံးသပ်မှု')
-      : (lang === 'en' ? 'direct momentum' : 'တည်တံ့လှုပ်ရှားမှု')
-    const title = lang === 'en'
-      ? `${planet.labelEn} • ${planet.signEn}`
-      : `${planet.labelMy} • ${planet.signMy}`
-    const message = lang === 'en'
-      ? `${planet.labelEn} in ${planet.signEn} (${planet.degree}) leans toward ${focus.toLowerCase()}. Honor the ${retro} of this placement while cultivating ${keywords[0] ?? 'balance'}.`
-      : `${planet.labelMy} သည် ${planet.signMy} (${planet.degree}) တွင် ရှိနေပြီး ${focus} ကို အလေးထားစေသည်။ ယင်းဂြိုလ်၏ ${retro} ကို သတိထားကာ ${keywords[0] ?? 'ညှိနှိုင်းမှု'} ကို ဖွံ့ဖြိုးပါ။`
-    return { id: planet.id, title, focus, message, keywords }
-  }
-  const house = descriptor as HouseDescriptor
-  const theme = HOUSE_THEMES[house.number] || HOUSE_THEMES[1]
-  const focus = theme.focus[lang]
-  const keywords = theme.keywords[lang]
-  const title = lang === 'en'
-    ? `House ${house.number} • ${house.signEn}`
-    : `အိမ် ${house.number} • ${house.signMy}`
-  const message = lang === 'en'
-    ? `House ${house.number} in ${house.signEn} (${house.degree}) highlights ${focus.toLowerCase()}. Keep ${keywords[0] ?? 'clarity'} front and center while navigating this arena.`
-    : `${house.signMy} (${house.degree}) တွင် အိမ် ${house.number} ရှိနေခြင်းသည် ${focus} ကို ထင်ရှားစေသည်။ ယင်းကဏ္ဍတွင် ${keywords[0] ?? 'တင်းတိပ်ချက်'} ကို ကြည်လင်စွာ ထားရှိပါ။`
-  return { id: house.id, title, focus, message, keywords }
+function normalizeGender(value: unknown): Gender {
+  if (value === 'male' || value === 'female' || value === 'nonbinary') return value
+  return 'unspecified'
 }
 
-function buildFallbackSummary(lang: Lang, label: string): ReadingSummary {
-  return {
-    title: lang === 'en' ? 'Overall thread' : 'စုစုပေါင်းသရုပ်ခွဲ',
-    message: lang === 'en'
-      ? `${label} carries a chart that invites steady self-awareness and gentle experimentation. Blend the disciplined houses with the daring planets, and keep one practice that grounds you whenever emotions swell.`
-      : `${label} ၏ ဇာတာသည် ကိုယ်ပိုင်သတိself-awareness နှင့် စမ်းသပ်အသစ်များကို တည်ငြိမ်စွာ ဖိတ်ခေါ်နေသည်။ ကောင်းမွန်စည်းကမ်းတော်များနှင့် စိတ်အောင်တည်သော ဂြိုလ်များကို ပေါင်းစပ်ပြီး စိတ်ထွက်လွန်စဉ်တွင် သင့်ကို မြေပြင်ချသော လေ့ကျင့်မှုတစ်ခုခုကို ထိန်းသိမ်းပါ။`,
-    keywords: lang === 'en' ? ['balance','awareness','integration'] : ['ညှိနှိုင်း','သတိပညာ','ပေါင်းစည်းမှု']
-  }
+function genderLabel(gender: Gender, lang: Lang) {
+  return GENDER_TEXT[gender]?.[lang] || GENDER_TEXT.unspecified[lang]
+}
+
+function getPronouns(gender: Gender, lang: Lang): PronounSet {
+  const map = PRONOUNS[lang] || PRONOUNS.en
+  return map[gender] || map.unspecified
 }
 
 function mergeTopics(raw: any, descriptors: Array<PlanetDescriptor | HouseDescriptor>, lang: Lang): ReadingTopic[] {
-  const provided = Array.isArray(raw?.topics) ? raw.topics : []
-  return descriptors.map((descriptor, index) => {
-    const candidate = provided.find((entry: any) => typeof entry?.id === 'string' && entry.id.toLowerCase() === descriptor.id.toLowerCase()) || provided[index]
-    if (candidate) {
-      const focus = typeof candidate.focus === 'string' && candidate.focus.trim()
-        ? candidate.focus.trim().slice(0, lang === 'en' ? 80 : 120)
-        : undefined
-      const title = typeof candidate.title === 'string' && candidate.title.trim()
-        ? candidate.title.trim().slice(0, lang === 'en' ? 90 : 120)
-        : undefined
-      const message = typeof candidate.message === 'string' && candidate.message.trim()
-        ? candidate.message.trim().slice(0, 700)
-        : undefined
-      const keywords = normalizeKeywords(candidate.keywords, lang)
-      if (focus && title && message) {
-        return {
-          id: descriptor.id,
-          focus,
-          title,
-          message,
-          keywords
-        }
-      }
+  if (!Array.isArray(raw?.topics)) {
+    throw new Error('AI did not return topics.')
+  }
+  return descriptors.map(descriptor => {
+    const candidate = raw.topics.find((entry: any) => typeof entry?.id === 'string' && entry.id.toLowerCase() === descriptor.id.toLowerCase())
+    if (!candidate) {
+      throw new Error(`AI topic missing: ${descriptor.id}`)
     }
-    return buildFallbackTopic(descriptor, lang)
+    const focus = typeof candidate.focus === 'string' && candidate.focus.trim()
+      ? candidate.focus.trim().slice(0, lang === 'en' ? 80 : 120)
+      : null
+    const title = typeof candidate.title === 'string' && candidate.title.trim()
+      ? candidate.title.trim().slice(0, lang === 'en' ? 90 : 120)
+      : null
+    const message = typeof candidate.message === 'string' && candidate.message.trim()
+      ? candidate.message.trim().slice(0, 700)
+      : null
+    if (!focus || !title || !message) {
+      throw new Error(`AI topic incomplete: ${descriptor.id}`)
+    }
+    const keywords = normalizeKeywords(candidate.keywords, lang)
+    return {
+      id: descriptor.id,
+      focus,
+      title,
+      message,
+      keywords
+    }
   })
 }
 
+function extractSummary(raw: any, lang: Lang): ReadingSummary | null {
+  if (!raw || typeof raw !== 'object') {
+    return null
+  }
+  const title = typeof raw.title === 'string' && raw.title.trim()
+    ? raw.title.trim().slice(0, lang === 'en' ? 90 : 120)
+    : null
+  const message = typeof raw.message === 'string' && raw.message.trim()
+    ? raw.message.trim().slice(0, 700)
+    : null
+  if (!title || !message) {
+    return null
+  }
+  return {
+    title,
+    message,
+    keywords: normalizeKeywords(raw.keywords, lang)
+  }
+}
+
+function summarizeGeminiResponse(payload: any) {
+  if (!payload || typeof payload !== 'object') return undefined
+  try {
+    const json = JSON.stringify(payload)
+    return json.length > 1000 ? `${json.slice(0, 1000)}…` : json
+  } catch {
+    return undefined
+  }
+}
+
 function shapeResponse(args: {
+  context: Extract<ReadingContext, 'self' | 'other'>
   phase: Phase
   aiText: string | null
   planets: PlanetDescriptor[]
   houses: HouseDescriptor[]
   lang: Lang
-  label: string
 }): ReadingResponse {
-  const { phase, aiText, planets, houses, lang, label } = args
-  const descriptors = phase === 'planets' ? planets : houses
+  const { context, phase, aiText, planets, houses, lang } = args
+  if (!aiText) throw new Error('AI response missing.')
   const parsed = extractJson(aiText)
+  if (!parsed || typeof parsed !== 'object') throw new Error('AI response malformed.')
+  const descriptors = phase === 'planets' ? planets : houses
   const topics = mergeTopics(parsed, descriptors, lang)
   let summary: ReadingSummary | undefined
   if (phase === 'houses') {
-    if (parsed?.summary && typeof parsed.summary === 'object') {
-      const title = typeof parsed.summary.title === 'string' && parsed.summary.title.trim()
-      const message = typeof parsed.summary.message === 'string' && parsed.summary.message.trim()
-      summary = {
-        title: title ? title.slice(0, lang === 'en' ? 90 : 120) : buildFallbackSummary(lang, label).title,
-        message: message ? message.slice(0, 700) : buildFallbackSummary(lang, label).message,
-        keywords: normalizeKeywords(parsed.summary.keywords, lang)
-      }
-    } else {
-      summary = buildFallbackSummary(lang, label)
-    }
+    const summaryCandidate = extractSummary(parsed.summary, lang)
+    summary = summaryCandidate || undefined
   }
-  const usedFallback = !parsed
   return {
+    context,
     phase,
     topics,
     summary,
-    source: usedFallback ? 'fallback' : 'ai'
+    source: 'ai'
   }
 }
 
@@ -516,14 +784,51 @@ export async function POST(req: Request) {
     return NextResponse.json({ error: 'Invalid JSON payload' }, { status: 400 })
   }
 
+  const rawContext = typeof body?.context === 'string' ? body.context : null
+  const context: ReadingContext =
+    rawContext === 'other' ? 'other'
+      : rawContext === 'couple' ? 'couple'
+        : 'self'
   const phase: Phase = body?.phase === 'houses' ? 'houses' : 'planets'
   const language: Lang = body?.language === 'en' ? 'en' : 'my'
+
+  if (context === 'couple') {
+    const partnerEntries = Array.isArray(body?.partners) ? body.partners : []
+    if (partnerEntries.length !== 2) {
+      return NextResponse.json({ error: 'Two partner payloads are required.' }, { status: 400 })
+    }
+    const partners = partnerEntries
+      .map((entry: any) => normalizePartner(entry, language))
+      .filter((entry: PartnerPayload | null): entry is PartnerPayload => Boolean(entry))
+    if (partners.length !== 2) {
+      return NextResponse.json({ error: 'Partner data incomplete.' }, { status: 400 })
+    }
+
+    logInfo('NATAL_AI_READING', { ...meta, userId: auth.uid, language, context })
+
+    const bundle = buildCouplePrompt({ partners, language })
+    const aiText = await askGemini(bundle, { ...meta, userId: auth.uid, language, context })
+    if (!aiText) {
+      logError('NATAL_COUPLE_AI_EMPTY', { ...meta, userId: auth.uid, language })
+      return NextResponse.json({ error: 'AI response unavailable. Try again in a moment.' }, { status: 502 })
+    }
+    try {
+      const payload = shapeCoupleResponse({ aiText, lang: language })
+      return NextResponse.json(payload)
+    } catch (err) {
+      logError('NATAL_COUPLE_AI_PARSE', { ...meta, userId: auth.uid, language }, err)
+      const message = err instanceof Error ? err.message : 'AI response invalid.'
+      return NextResponse.json({ error: message }, { status: 502 })
+    }
+  }
+
   const metadata = normalizeMetadata(body?.metadata)
   const planets = normalizePlanets(body?.planets)
   const houses = normalizeHouses(body?.houses)
   const asc = normalizePoint(body?.ascendant, 'ascendant', 'Ascendant', 'လာဂျ') || null
   const mid = normalizePoint(body?.midheaven, 'midheaven', 'Midheaven', 'မိတ်ထွန်း') || null
   const label = sanitizeLabel(body?.label, language)
+  const gender = normalizeGender(body?.gender)
 
   if (!metadata) {
     return NextResponse.json({ error: 'Metadata is required.' }, { status: 400 })
@@ -535,25 +840,29 @@ export async function POST(req: Request) {
     return NextResponse.json({ error: 'House data missing.' }, { status: 400 })
   }
 
-  logInfo('NATAL_AI_READING', { ...meta, userId: auth.uid, phase, language })
+  logInfo('NATAL_AI_READING', { ...meta, userId: auth.uid, phase, language, context })
 
-  const bundle = buildPrompt({ phase, metadata, planets, houses, asc, mid, language, label })
-  const pref = (process.env.AI_PROVIDER || '').toLowerCase()
-  let aiText: string | null = null
-  if (pref === 'gemini') {
-    aiText = await askGemini(bundle) ?? await askOpenAI(bundle)
-  } else {
-    aiText = await askOpenAI(bundle) ?? await askGemini(bundle)
+  const bundle = buildPrompt({ context, phase, metadata, planets, houses, asc, mid, language, label, gender })
+  const aiText = await askGemini(bundle, { ...meta, userId: auth.uid, phase, language, context })
+
+  if (!aiText) {
+    logError('NATAL_AI_EMPTY', { ...meta, userId: auth.uid, phase, language, context })
+    return NextResponse.json({ error: 'AI response unavailable. Try again in a moment.' }, { status: 502 })
   }
 
-  const payload = shapeResponse({
-    phase,
-    aiText,
-    planets,
-    houses,
-    lang: language,
-    label
-  })
-
-  return NextResponse.json(payload)
+  try {
+    const payload = shapeResponse({
+      context,
+      phase,
+      aiText,
+      planets,
+      houses,
+      lang: language
+    })
+    return NextResponse.json(payload)
+  } catch (err) {
+    logError('NATAL_AI_PARSE', { ...meta, userId: auth.uid, phase, language, context }, err)
+    const message = err instanceof Error ? err.message : 'AI response invalid.'
+    return NextResponse.json({ error: message }, { status: 502 })
+  }
 }
