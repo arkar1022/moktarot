@@ -982,7 +982,7 @@ export async function POST(req: Request) {
     logError('NATAL_AI_EMPTY', { ...meta, userId: auth.uid, phase, language, context })
     const message = language === 'en'
       ? 'Our AI astrologer is currently overloaded because many users are requesting readings at the same time. Please give us a moment to catch up and try again later—thank you for your patience!'
-      : 'ဤအချိန်တွင် လူများစွာမှ တစ်ပြိုင်တည်း တောင်းဆိုနေသဖြင့် AI ဖတ်ရှုမှု ဝန်ဆောင်မှုက အပြည့်ထိန့်ကျရပ်နားနေပါသည်။ နည်းနည်းနားပြီး နောက်တစ်ကြိမ် ပြန်လည်ကြိုးစားပေးပါ၊ စောင့်ဆိုင်းမှုအတွက် ကျေးဇူးတင်ပါတယ်။'
+      : ' အသုံးပြုနေသဖြင့် AI ဖတ်ရှုမှု ဝန်ဆောင်မှုက overload ဖြစ်နေပါသည်။ နည်းနည်းနားပြီး နောက်တစ်ကြိမ် ပြန်လည်ကြိုးစားပေးပါ၊ စောင့်ဆိုင်းမှုအတွက် ကျေးဇူးတင်ပါတယ်။'
     await markNatalRecordError(recordId, message)
     return NextResponse.json({ error: message }, { status: 502 })
   }
