@@ -163,6 +163,10 @@ const HOUSE_OPTIONS = [
   { value: 'E', en: 'Equal', my: 'Equal' }
 ]
 
+const NAME_PLACEHOLDER_SELF = 'Willian Kyaw'
+const NAME_PLACEHOLDER_PARTNER_A = 'Julia May'
+const NAME_PLACEHOLDER_PARTNER_B = 'Willian Kyaw'
+
 const LANGUAGE_LABEL: Record<Lang, string> = {
   en: 'English',
   my: 'မြန်မာ'
@@ -335,12 +339,12 @@ const COPY: Record<Lang, {
     tabs: {
       self: { title: 'ကိုယ်တိုင်', description: 'ကိုယ်ပိုင် ဇာတာခွင်၊ ဂြိုလ်အကြောင်းအရာများကို ကြည့်ရှုနိုင်ပါတယ်။' },
       other: { title: 'အခြားသူ', description: 'အခြားလူတစ်ဦး၏ ဇာတာကို တွက်ချက်ကာ သူ့ရဲ့ အကျင့်စရိုက်၊ ကြိုက်နှစ်သက်မှု အားနည်းချက်များကို သိနိုင်ပါတယ်။' },
-      couple: { title: 'စုံတွဲဇာတာ', description: 'လူနှစ်ဦး၏ မွေးသက်သွင်းချက်နှင့် ကျား/မ ရွေးချယ်မှုကို ထည့်ပြီး အချစ်ရေး၊ အားသာချက်များ ကိုသိနိုင်ပါတယ်။' }
+      couple: { title: 'စုံတွဲဇာတာ', description: 'လူနှစ်ဦးရဲ့ အချက်အလက်ကို ထည့်ပြီး အချစ်ရေး၊ အားသာချက်များ ကိုသိနိုင်ပါတယ်။' }
     },
     title: 'မွေးဇာတာ',
     intro: 'မွေးနေ့၊ မွေးချိန်၊ အချိန်ဇုန်နှင့် တည်နေရာကို ထည့်သွင်းပြီး ဂြိုလ်တည်နေရာများနှင့် အိမ်များကို တွက်ဆပါ။ လတီ၊ လောင်ဂျီကို ဒဿမဒီဂရီဖြင့် ထည့်သွင်းပါ (အရှေ့ +, အနောက် -).',
     form: {
-      name: 'အမည် (မဖြည့်လည်းရ)',
+      name: 'အမည်',
       birthDate: 'မွေးသက္ကရာဇ်',
       birthTime: 'မွေးချိန်', 
       timeHint: 'ဤချိန်သည် သင်ရွေးသတ်မှတ်ထားသော တည်နေရာ၏ မိမိဒေသအချိန်ဖြစ်သည်။',
@@ -550,8 +554,8 @@ export default function NatalClient({ initialLang }: { initialLang: Lang }) {
     other: createPersonForm('female')
   }))
   const [coupleForms, setCoupleForms] = useState<{ partnerA: CoupleFormState; partnerB: CoupleFormState }>(() => ({
-    partnerA: createCoupleForm(copy.relationship.partnerLabels.first, 'female'),
-    partnerB: createCoupleForm(copy.relationship.partnerLabels.second, 'male')
+    partnerA: createCoupleForm('', 'female'),
+    partnerB: createCoupleForm('', 'male')
   }))
   const [singleResults, setSingleResults] = useState<{ self: NatalResponse | null; other: NatalResponse | null }>({ self: null, other: null })
   const [singleLoading, setSingleLoading] = useState<{ self: boolean; other: boolean }>({ self: false, other: false })
@@ -577,8 +581,8 @@ export default function NatalClient({ initialLang }: { initialLang: Lang }) {
     partnerA: { label: string; gender: CoupleFormState['gender'] }
     partnerB: { label: string; gender: CoupleFormState['gender'] }
   }>({
-    partnerA: { label: copy.relationship.partnerLabels.first, gender: 'female' },
-    partnerB: { label: copy.relationship.partnerLabels.second, gender: 'male' }
+    partnerA: { label: '', gender: 'female' },
+    partnerB: { label: '', gender: 'male' }
   })
   const [showRecordModal, setShowRecordModal] = useState(false)
   const [recordsLoading, setRecordsLoading] = useState(false)
@@ -1072,8 +1076,9 @@ export default function NatalClient({ initialLang }: { initialLang: Lang }) {
       const result = coupleResult[key]
       const meta = couplePayloadMeta[key]
       const fallbackLabel = key === 'partnerA' ? copy.relationship.partnerLabels.first : copy.relationship.partnerLabels.second
+      const trimmedLabel = (meta.label || '').trim()
       return {
-        label: meta.label || fallbackLabel,
+        label: trimmedLabel || fallbackLabel,
         gender: meta.gender,
         metadata: result.metadata,
         planets: result.planets,
@@ -1131,6 +1136,14 @@ export default function NatalClient({ initialLang }: { initialLang: Lang }) {
       [target]: { planetInsights: [], houseInsights: [], summary: null, status: 'idle', error: null, planetModel: null, houseModel: null }
     }))
     const labelValue = form.label.trim()
+    if (target === 'other' && !labelValue) {
+      const message = lang === 'en'
+        ? 'Please enter a name for this person.'
+        : 'ဤပုဂ္ဂိုလ်အတွက် နာမည်ထည့်ပေးပါ။'
+      setSingleErrors(prev => ({ ...prev, [target]: message }))
+      setSingleLoading(prev => ({ ...prev, [target]: false }))
+      return
+    }
     setSubmittedLabels(prev => ({ ...prev, [target]: labelValue }))
     setSubmittedGenders(prev => ({ ...prev, [target]: form.gender }))
 
@@ -1171,8 +1184,16 @@ export default function NatalClient({ initialLang }: { initialLang: Lang }) {
     setRelationshipModel(null)
 
     const labels = {
-      partnerA: coupleForms.partnerA.label.trim() || copy.relationship.partnerLabels.first,
-      partnerB: coupleForms.partnerB.label.trim() || copy.relationship.partnerLabels.second
+      partnerA: coupleForms.partnerA.label.trim(),
+      partnerB: coupleForms.partnerB.label.trim()
+    }
+    if (!labels.partnerA || !labels.partnerB) {
+      const message = lang === 'en'
+        ? 'Please enter a name for each partner before generating the reading.'
+        : 'ဖတ်ရှုရန်မတိုင်မီ အများနှစ်ဦးစလုံး၏ နာမည်များကို ဖြည့်ပါ။'
+      setCoupleError(message)
+      setCoupleLoading(false)
+      return
     }
     setCouplePayloadMeta({
       partnerA: { label: labels.partnerA, gender: coupleForms.partnerA.gender },
@@ -1234,18 +1255,6 @@ export default function NatalClient({ initialLang }: { initialLang: Lang }) {
     return () => observer.disconnect()
   }, [])
 
-  useEffect(() => {
-    setCoupleForms(prev => ({
-      partnerA: prev.partnerA.label ? prev.partnerA : { ...prev.partnerA, label: copy.relationship.partnerLabels.first },
-      partnerB: prev.partnerB.label ? prev.partnerB : { ...prev.partnerB, label: copy.relationship.partnerLabels.second }
-    }))
-    setCouplePayloadMeta(prev => ({
-      partnerA: { ...prev.partnerA, label: prev.partnerA.label || copy.relationship.partnerLabels.first },
-      partnerB: { ...prev.partnerB, label: prev.partnerB.label || copy.relationship.partnerLabels.second }
-    }))
-  }, [copy.relationship.partnerLabels.first, copy.relationship.partnerLabels.second])
-
-
   const submitLabel = mode === 'couple' ? COUPLE_SUBMIT_LABEL[lang] : copy.form.submit
   const displayLoading = mode === 'couple' ? coupleLoading : activeLoading
   const displayError = mode === 'couple' ? coupleError : activeError
@@ -1256,6 +1265,8 @@ export default function NatalClient({ initialLang }: { initialLang: Lang }) {
   const relationshipStatusText = copy.relationship.status[relationshipStatus]
   const activeModelLabel = activeReading.houseModel ?? activeReading.planetModel ?? null
   const relationshipModelLabel = relationshipModel ? MODEL_LABELS[relationshipModel] : null
+  const activeChartName = (submittedLabels[activePersonKey] || '').trim()
+  const showActiveChartName = mode === 'other' && Boolean(activeChartName)
 
   return (
     <div className="space-y-8">
@@ -1313,6 +1324,8 @@ export default function NatalClient({ initialLang }: { initialLang: Lang }) {
                 <input
                   type="text"
                   value={activeForm.label}
+                  placeholder={mode === 'other' ? NAME_PLACEHOLDER_SELF : NAME_PLACEHOLDER_SELF}
+                  required={mode === 'other'}
                   onChange={e => handlePersonFieldChange(activePersonKey, 'label', e.target.value)}
                   className="w-full rounded-lg border border-mok-goldDeep/40 bg-black/60 px-3 py-2 focus:border-mok-gold focus:outline-none"
                 />
@@ -1454,6 +1467,7 @@ export default function NatalClient({ initialLang }: { initialLang: Lang }) {
               {PARTNER_KEYS.map(key => {
                 const form = coupleForms[key]
                 const fallbackLabel = key === 'partnerA' ? copy.relationship.partnerLabels.first : copy.relationship.partnerLabels.second
+                const placeholder = key === 'partnerA' ? NAME_PLACEHOLDER_PARTNER_A : NAME_PLACEHOLDER_PARTNER_B
                 const stateOptions = getStateOptions(form.country)
                 const cityOptions = getCityOptions(form.country, form.state)
                 const matched = findLocationMatch(form)
@@ -1467,7 +1481,8 @@ export default function NatalClient({ initialLang }: { initialLang: Lang }) {
                         <input
                           type="text"
                           value={form.label}
-                          placeholder={fallbackLabel}
+                          placeholder={placeholder}
+                          required
                           onChange={e => handleCoupleFieldChange(key, 'label', e.target.value)}
                           className="w-full rounded-lg border border-mok-goldDeep/40 bg-black/60 px-3 py-2"
                         />
@@ -1634,11 +1649,13 @@ export default function NatalClient({ initialLang }: { initialLang: Lang }) {
                 {PARTNER_KEYS.map(key => {
                   const partnerResult = coupleResult[key]
                   const labelFallback = key === 'partnerA' ? copy.relationship.partnerLabels.first : copy.relationship.partnerLabels.second
+                  const trimmedMetaLabel = (couplePayloadMeta[key]?.label || '').trim()
+                  const displayLabel = trimmedMetaLabel || labelFallback
                   const chart = coupleChartData ? coupleChartData[key] : null
                   return (
                     <div key={key} className="rounded-2xl border border-mok-goldDeep/40 bg-black/40 p-4 space-y-4">
                       <div>
-                        <h2 className="text-sm font-semibold text-mok-gold">{labelFallback}</h2>
+                        <h2 className="text-sm font-semibold text-mok-gold">{displayLabel}</h2>
                         <ul className="mt-3 space-y-1 text-xs text-neutral-300">
                           <li>{partnerResult.metadata.birthDate} · {partnerResult.metadata.birthTime}</li>
                           <li>{formatOffset(partnerResult.metadata.timezoneMinutes)} · lat {partnerResult.metadata.latitude.toFixed(4)}, lon {partnerResult.metadata.longitude.toFixed(4)}</li>
@@ -1646,8 +1663,11 @@ export default function NatalClient({ initialLang }: { initialLang: Lang }) {
                         </ul>
                       </div>
                       <div className="flex flex-col gap-4 md:flex-row md:items-center">
-                        <NatalChartWheel planets={chart?.planets ?? []} houses={chart?.houses ?? []} ascDegree={partnerResult.ascendant?.degree}
-                        />
+                        <div className="flex-1">
+                          <p className="mb-2 text-xs uppercase tracking-widest text-neutral-400">{displayLabel}</p>
+                          <NatalChartWheel planets={chart?.planets ?? []} houses={chart?.houses ?? []} ascDegree={partnerResult.ascendant?.degree}
+                          />
+                        </div>
                         <div className="space-y-3 text-xs text-neutral-300">
                           {partnerResult.ascendant && (
                             <div>
@@ -1830,7 +1850,12 @@ export default function NatalClient({ initialLang }: { initialLang: Lang }) {
 
               <div className="grid gap-6 md:grid-cols-2">
                 <div className="rounded-2xl border border-mok-goldDeep/30 bg-black/30 p-4">
-                  <h2 className="mb-3 text-sm font-semibold text-mok-gold">{copy.chartTitle}</h2>
+                  <div className="mb-3 flex flex-col gap-1">
+                    <h2 className="text-sm font-semibold text-mok-gold">{copy.chartTitle}</h2>
+                    {showActiveChartName && (
+                      <span className="text-xs uppercase tracking-widest text-neutral-400">{activeChartName}</span>
+                    )}
+                  </div>
                   <NatalChartWheel planets={activeChartPlanets} houses={activeHouseLines} ascDegree={activeResult.ascendant?.degree}
                   />
                 </div>
