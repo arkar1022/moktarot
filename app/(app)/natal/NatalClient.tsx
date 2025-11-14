@@ -96,12 +96,16 @@ type RelationshipTopic = {
 
 type CoupleReadingPhase = 'idle' | 'loading' | 'done'
 
+type ModelLabel = 'model1' | 'model2'
+
 type ReadingState = {
   planetInsights: ReadingTopic[]
   houseInsights: ReadingTopic[]
   summary: ReadingSummary | null
   status: ReadingPhase
   error: string | null
+  planetModel: ModelLabel | null
+  houseModel: ModelLabel | null
 }
 
 type CoupleResultState = {
@@ -123,6 +127,7 @@ type NatalRecordEntry = {
     summary?: ReadingSummary | null
     context?: string
     phase?: string
+    model?: ModelLabel
   } | null
 }
 
@@ -161,6 +166,11 @@ const HOUSE_OPTIONS = [
 const LANGUAGE_LABEL: Record<Lang, string> = {
   en: 'English',
   my: 'မြန်မာ'
+}
+
+const MODEL_LABELS: Record<ModelLabel, string> = {
+  model1: 'Model 1',
+  model2: 'Model 2'
 }
 
 const RECORD_STATUS_LABEL: Record<NatalRecordEntry['status'], string> = {
@@ -552,8 +562,8 @@ export default function NatalClient({ initialLang }: { initialLang: Lang }) {
     other: 'female'
   })
   const [readingStates, setReadingStates] = useState<{ self: ReadingState; other: ReadingState }>(() => ({
-    self: { planetInsights: [], houseInsights: [], summary: null, status: 'idle', error: null },
-    other: { planetInsights: [], houseInsights: [], summary: null, status: 'idle', error: null }
+    self: { planetInsights: [], houseInsights: [], summary: null, status: 'idle', error: null, planetModel: null, houseModel: null },
+    other: { planetInsights: [], houseInsights: [], summary: null, status: 'idle', error: null, planetModel: null, houseModel: null }
   }))
   const [coupleResult, setCoupleResult] = useState<CoupleResultState | null>(null)
   const [coupleLoading, setCoupleLoading] = useState(false)
@@ -562,7 +572,7 @@ export default function NatalClient({ initialLang }: { initialLang: Lang }) {
   const [relationshipSummary, setRelationshipSummary] = useState<ReadingSummary | null>(null)
   const [relationshipStatus, setRelationshipStatus] = useState<CoupleReadingPhase>('idle')
   const [relationshipError, setRelationshipError] = useState<string | null>(null)
-  const [relationshipSource, setRelationshipSource] = useState<'ai' | 'fallback' | null>(null)
+  const [relationshipModel, setRelationshipModel] = useState<ModelLabel | null>(null)
   const [couplePayloadMeta, setCouplePayloadMeta] = useState<{
     partnerA: { label: string; gender: CoupleFormState['gender'] }
     partnerB: { label: string; gender: CoupleFormState['gender'] }
@@ -863,10 +873,19 @@ export default function NatalClient({ initialLang }: { initialLang: Lang }) {
     const controller = new AbortController()
     setReadingStates(prev => ({
       ...prev,
-      [context]: { ...prev[context], planetInsights: [], houseInsights: [], summary: null, status: 'planets', error: null }
+      [context]: {
+        ...prev[context],
+        planetInsights: [],
+        houseInsights: [],
+        summary: null,
+        status: 'planets',
+        error: null,
+        planetModel: null,
+        houseModel: null
+      }
     }))
 
-    async function requestPhase(phase: 'planets' | 'houses'): Promise<{ topics: ReadingTopic[]; summary?: ReadingSummary } | null> {
+    async function requestPhase(phase: 'planets' | 'houses'): Promise<{ topics: ReadingTopic[]; summary?: ReadingSummary; model?: ModelLabel } | null> {
       const res = await fetch('/api/natal/reading', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
@@ -890,7 +909,7 @@ export default function NatalClient({ initialLang }: { initialLang: Lang }) {
         return null
       }
       if (!res.ok) throw new Error(data?.error || copy.reading.error)
-      return data as { topics: ReadingTopic[]; summary?: ReadingSummary }
+      return data as { topics: ReadingTopic[]; summary?: ReadingSummary; model?: ModelLabel }
     }
 
     ;(async () => {
@@ -909,6 +928,7 @@ export default function NatalClient({ initialLang }: { initialLang: Lang }) {
           [context]: {
             ...prev[context],
             planetInsights: Array.isArray(planetData.topics) ? planetData.topics : [],
+            planetModel: planetData?.model ?? prev[context].planetModel,
             status: 'houses'
           }
         }))
@@ -921,6 +941,7 @@ export default function NatalClient({ initialLang }: { initialLang: Lang }) {
             ...prev[context],
             houseInsights: Array.isArray(houseData.topics) ? houseData.topics : [],
             summary: houseData.summary || null,
+            houseModel: houseData?.model ?? prev[context].houseModel,
             status: 'done'
           }
         }))
@@ -948,10 +969,19 @@ export default function NatalClient({ initialLang }: { initialLang: Lang }) {
     const controller = new AbortController()
     setReadingStates(prev => ({
       ...prev,
-      [context]: { ...prev[context], planetInsights: [], houseInsights: [], summary: null, status: 'planets', error: null }
+      [context]: {
+        ...prev[context],
+        planetInsights: [],
+        houseInsights: [],
+        summary: null,
+        status: 'planets',
+        error: null,
+        planetModel: null,
+        houseModel: null
+      }
     }))
 
-    async function requestPhase(phase: 'planets' | 'houses'): Promise<{ topics: ReadingTopic[]; summary?: ReadingSummary } | null> {
+    async function requestPhase(phase: 'planets' | 'houses'): Promise<{ topics: ReadingTopic[]; summary?: ReadingSummary; model?: ModelLabel } | null> {
       const res = await fetch('/api/natal/reading', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
@@ -975,7 +1005,7 @@ export default function NatalClient({ initialLang }: { initialLang: Lang }) {
         return null
       }
       if (!res.ok) throw new Error(data?.error || copy.reading.error)
-      return data as { topics: ReadingTopic[]; summary?: ReadingSummary }
+      return data as { topics: ReadingTopic[]; summary?: ReadingSummary; model?: ModelLabel }
     }
 
     ;(async () => {
@@ -994,6 +1024,7 @@ export default function NatalClient({ initialLang }: { initialLang: Lang }) {
           [context]: {
             ...prev[context],
             planetInsights: Array.isArray(planetData.topics) ? planetData.topics : [],
+            planetModel: planetData?.model ?? prev[context].planetModel,
             status: 'houses'
           }
         }))
@@ -1006,6 +1037,7 @@ export default function NatalClient({ initialLang }: { initialLang: Lang }) {
             ...prev[context],
             houseInsights: Array.isArray(houseData.topics) ? houseData.topics : [],
             summary: houseData.summary || null,
+            houseModel: houseData?.model ?? prev[context].houseModel,
             status: 'done'
           }
         }))
@@ -1025,13 +1057,16 @@ export default function NatalClient({ initialLang }: { initialLang: Lang }) {
   }, [singleResults.other, lang, submittedLabels.other, submittedGenders.other, copy.reading.error, openLimitModal])
 
   useEffect(() => {
-    if (!coupleResult) return
+    if (!coupleResult) {
+      setRelationshipModel(null)
+      return
+    }
     let cancelled = false
     setRelationshipTopics([])
     setRelationshipSummary(null)
     setRelationshipStatus('loading')
     setRelationshipError(null)
-    setRelationshipSource(null)
+    setRelationshipModel(null)
 
     const partnersPayload = PARTNER_KEYS.map(key => {
       const result = coupleResult[key]
@@ -1072,7 +1107,8 @@ export default function NatalClient({ initialLang }: { initialLang: Lang }) {
         setRelationshipTopics(Array.isArray(data.topics) ? data.topics : [])
         setRelationshipSummary(data.summary || null)
         setRelationshipStatus('done')
-        setRelationshipSource(data.source === 'fallback' ? 'fallback' : 'ai')
+        const modelValue = data?.model === 'model1' || data?.model === 'model2' ? (data.model as ModelLabel) : null
+        setRelationshipModel(modelValue)
       } catch (err: any) {
         if (cancelled) return
         setRelationshipError(err?.message || copy.reading.error)
@@ -1092,7 +1128,7 @@ export default function NatalClient({ initialLang }: { initialLang: Lang }) {
     setSingleResults(prev => ({ ...prev, [target]: null }))
     setReadingStates(prev => ({
       ...prev,
-      [target]: { planetInsights: [], houseInsights: [], summary: null, status: 'idle', error: null }
+      [target]: { planetInsights: [], houseInsights: [], summary: null, status: 'idle', error: null, planetModel: null, houseModel: null }
     }))
     const labelValue = form.label.trim()
     setSubmittedLabels(prev => ({ ...prev, [target]: labelValue }))
@@ -1132,7 +1168,7 @@ export default function NatalClient({ initialLang }: { initialLang: Lang }) {
     setRelationshipSummary(null)
     setRelationshipStatus('idle')
     setRelationshipError(null)
-    setRelationshipSource(null)
+    setRelationshipModel(null)
 
     const labels = {
       partnerA: coupleForms.partnerA.label.trim() || copy.relationship.partnerLabels.first,
@@ -1218,6 +1254,8 @@ export default function NatalClient({ initialLang }: { initialLang: Lang }) {
   const activeTab = copy.tabs[mode]
   const singleStatusText = copy.reading.status[activeReading.status]
   const relationshipStatusText = copy.relationship.status[relationshipStatus]
+  const activeModelLabel = activeReading.houseModel ?? activeReading.planetModel ?? null
+  const relationshipModelLabel = relationshipModel ? MODEL_LABELS[relationshipModel] : null
 
   return (
     <div className="space-y-8">
@@ -1692,18 +1730,26 @@ export default function NatalClient({ initialLang }: { initialLang: Lang }) {
                     <h2 className="text-sm font-semibold text-mok-gold">{copy.relationship.title}</h2>
                     <p className="text-xs text-neutral-400">{copy.relationship.subtitle}</p>
                   </div>
-                  <span className="inline-flex items-center gap-2 rounded-full border border-mok-gold/40 px-3 py-1 text-xs text-mok-gold">
-                    <span
-                      className={`h-2 w-2 rounded-full ${
-                        relationshipStatus === 'done'
-                          ? 'bg-emerald-400'
-                          : relationshipStatus === 'idle'
-                            ? 'bg-neutral-600'
-                            : 'bg-mok-gold animate-pulse'
-                      }`}
-                    />
-                    {relationshipStatusText}
-                  </span>
+                  <div className="flex flex-wrap gap-2">
+                    <span className="inline-flex items-center gap-2 rounded-full border border-mok-gold/40 px-3 py-1 text-xs text-mok-gold">
+                      <span
+                        className={`h-2 w-2 rounded-full ${
+                          relationshipStatus === 'done'
+                            ? 'bg-emerald-400'
+                            : relationshipStatus === 'idle'
+                              ? 'bg-neutral-600'
+                              : 'bg-mok-gold animate-pulse'
+                        }`}
+                      />
+                      {relationshipStatusText}
+                    </span>
+                    {relationshipModelLabel && (
+                      <span className="inline-flex items-center gap-1 rounded-full border border-mok-goldDeep/40 px-3 py-1 text-[11px] text-neutral-200">
+                        <span className="uppercase tracking-widest text-[10px] text-neutral-500">AI Model</span>
+                        <span className="font-semibold text-mok-gold">{relationshipModelLabel}</span>
+                      </span>
+                    )}
+                  </div>
                 </div>
                 {relationshipError && <p className="rounded-lg border border-red-500/30 bg-red-500/10 px-3 py-2 text-xs text-red-200">{relationshipError}</p>}
                 <div className="space-y-3">
@@ -1852,18 +1898,26 @@ export default function NatalClient({ initialLang }: { initialLang: Lang }) {
                     <h2 className="text-sm font-semibold text-mok-gold">{copy.reading.title}</h2>
                     <p className="text-xs text-neutral-400">{copy.reading.subtitle}</p>
                   </div>
-                  <span className="inline-flex items-center gap-2 rounded-full border border-mok-gold/40 px-3 py-1 text-xs text-mok-gold">
-                    <span
-                      className={`h-2 w-2 rounded-full ${
-                        activeReading.status === 'done'
-                          ? 'bg-emerald-400'
-                          : activeReading.status === 'idle'
-                            ? 'bg-neutral-600'
-                            : 'bg-mok-gold animate-pulse'
-                      }`}
-                    />
-                    {singleStatusText}
-                  </span>
+                  <div className="flex flex-wrap gap-2">
+                    <span className="inline-flex items-center gap-2 rounded-full border border-mok-gold/40 px-3 py-1 text-xs text-mok-gold">
+                      <span
+                        className={`h-2 w-2 rounded-full ${
+                          activeReading.status === 'done'
+                            ? 'bg-emerald-400'
+                            : activeReading.status === 'idle'
+                              ? 'bg-neutral-600'
+                              : 'bg-mok-gold animate-pulse'
+                        }`}
+                      />
+                      {singleStatusText}
+                    </span>
+                    {activeModelLabel && (
+                      <span className="inline-flex items-center gap-1 rounded-full border border-mok-goldDeep/40 px-3 py-1 text-[11px] text-neutral-200">
+                        <span className="uppercase tracking-widest text-[10px] text-neutral-500">AI Model</span>
+                        <span className="font-semibold text-mok-gold">{MODEL_LABELS[activeModelLabel]}</span>
+                      </span>
+                    )}
+                  </div>
                 </div>
                 {activeReading.error && (
                   <p className="rounded-lg border border-red-500/30 bg-red-500/10 px-3 py-2 text-xs text-red-200">{activeReading.error}</p>

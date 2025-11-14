@@ -67,6 +67,7 @@ type ReadingResponse = {
   topics: ReadingTopic[]
   summary?: ReadingSummary
   source: 'ai'
+  model?: ModelLabel
 }
 
 type RelationshipTopic = {
@@ -82,6 +83,7 @@ type CoupleResponse = {
   topics: RelationshipTopic[]
   summary?: ReadingSummary
   source: 'ai'
+  model?: ModelLabel
 }
 
 type Gender = 'male' | 'female' | 'nonbinary' | 'unspecified'
@@ -100,6 +102,8 @@ type PromptBundle = {
   system: string
   user: string
 }
+
+type ModelLabel = 'model1' | 'model2'
 
 const DEGREE_SYMBOL = '\u00B0'
 const MAX_TOPICS = 12
@@ -684,10 +688,10 @@ async function askOpenAI(bundle: PromptBundle, trace: Record<string, any> = {}) 
   return null
 }
 
-async function generateAiText(bundle: PromptBundle, trace: Record<string, any>) {
-  const attempts: Array<{ name: 'gemini' | 'openai'; runner: typeof askGemini | typeof askOpenAI }> = [
-    { name: 'gemini', runner: askGemini },
-    { name: 'openai', runner: askOpenAI }
+async function generateAiText(bundle: PromptBundle, trace: Record<string, any>): Promise<{ text: string; model: ModelLabel } | null> {
+  const attempts: Array<{ name: 'gemini' | 'openai'; runner: typeof askGemini | typeof askOpenAI; model: ModelLabel }> = [
+    { name: 'gemini', runner: askGemini, model: 'model1' },
+    { name: 'openai', runner: askOpenAI, model: 'model2' }
   ]
 
   for (const attempt of attempts) {
@@ -695,10 +699,10 @@ async function generateAiText(bundle: PromptBundle, trace: Record<string, any>) 
     const text = await attempt.runner(bundle, trace)
     const elapsedMs = Date.now() - started
     if (text) {
-      logInfo('NATAL_AI_PROVIDER', { ...trace, provider: attempt.name, status: 'success', elapsedMs })
-      return text
+      logInfo('NATAL_AI_PROVIDER', { ...trace, provider: attempt.name, status: 'success', elapsedMs, model: attempt.model })
+      return { text, model: attempt.model }
     }
-    logInfo('NATAL_AI_PROVIDER', { ...trace, provider: attempt.name, status: 'failed', elapsedMs })
+    logInfo('NATAL_AI_PROVIDER', { ...trace, provider: attempt.name, status: 'failed', elapsedMs, model: attempt.model })
   }
   return null
 }
@@ -987,8 +991,8 @@ export async function POST(req: Request) {
     })
 
     const bundle = buildCouplePrompt({ partners, language })
-    const aiText = await generateAiText(bundle, { ...meta, userId: auth.uid, language, context })
-    if (!aiText) {
+    const aiResult = await generateAiText(bundle, { ...meta, userId: auth.uid, language, context })
+    if (!aiResult) {
       logError('NATAL_COUPLE_AI_EMPTY', { ...meta, userId: auth.uid, language })
       const message = language === 'en'
         ? 'Our AI astrologer is currently overloaded because many users are requesting readings at the same time. Please give us a moment to catch up and try again later—thank you for your patience!'
@@ -997,14 +1001,15 @@ export async function POST(req: Request) {
       return NextResponse.json({ error: message }, { status: 502 })
     }
     try {
-      const payload = shapeCoupleResponse({ aiText, lang: language })
-      await markNatalRecordSuccess(recordId, payload)
+      const payload = shapeCoupleResponse({ aiText: aiResult.text, lang: language })
+      const responsePayload = aiResult.model ? { ...payload, model: aiResult.model } : payload
+      await markNatalRecordSuccess(recordId, responsePayload)
       if (shouldCheckLimit && willConsumeExtra && auth.role !== 'ADMIN') {
         try {
           await prisma.user.update({ where: { id: auth.uid }, data: { extraQuota: { decrement: 1 } } })
         } catch {}
       }
-      return NextResponse.json(payload)
+      return NextResponse.json(responsePayload)
     } catch (err) {
       logError('NATAL_COUPLE_AI_PARSE', { ...meta, userId: auth.uid, language }, err)
       const message = err instanceof Error ? err.message : 'AI response invalid.'
@@ -1051,9 +1056,9 @@ export async function POST(req: Request) {
   })
 
   const bundle = buildPrompt({ context, phase, metadata, planets, houses, asc, mid, language, label, gender })
-  const aiText = await generateAiText(bundle, { ...meta, userId: auth.uid, phase, language, context })
+  const aiResult = await generateAiText(bundle, { ...meta, userId: auth.uid, phase, language, context })
 
-  if (!aiText) {
+  if (!aiResult) {
     logError('NATAL_AI_EMPTY', { ...meta, userId: auth.uid, phase, language, context })
     const message = language === 'en'
       ? 'Our AI astrologer is currently overloaded because many users are requesting readings at the same time. Please give us a moment to catch up and try again later—thank you for your patience!'
@@ -1066,18 +1071,19 @@ export async function POST(req: Request) {
     const payload = shapeResponse({
       context,
       phase,
-      aiText,
+      aiText: aiResult.text,
       planets,
       houses,
       lang: language
     })
-    await markNatalRecordSuccess(recordId, payload)
+    const responsePayload = aiResult.model ? { ...payload, model: aiResult.model } : payload
+    await markNatalRecordSuccess(recordId, responsePayload)
     if (shouldCheckLimit && willConsumeExtra && auth.role !== 'ADMIN') {
       try {
         await prisma.user.update({ where: { id: auth.uid }, data: { extraQuota: { decrement: 1 } } })
       } catch {}
     }
-    return NextResponse.json(payload)
+    return NextResponse.json(responsePayload)
   } catch (err) {
     logError('NATAL_AI_PARSE', { ...meta, userId: auth.uid, phase, language, context }, err)
     const message = err instanceof Error ? err.message : 'AI response invalid.'
