@@ -1,4 +1,5 @@
 import { NextResponse } from 'next/server'
+import { Prisma } from '@prisma/client'
 import { getAuth } from '@/lib/auth'
 import { logError, logInfo, reqMeta } from '@/lib/log'
 import { prisma } from '@/lib/prisma'
@@ -681,28 +682,62 @@ function getPronouns(gender: Gender, lang: Lang): PronounSet {
   return map[gender] || map.unspecified
 }
 
-async function persistNatalRecord(args: {
+async function createNatalRecord(args: {
   userId: string
   context: ReadingContext
   phase?: Phase | null
   language: Lang
   request: any
-  response: any
 }) {
-  const { userId, context, phase, language, request, response } = args
+  const { userId, context, phase, language, request } = args
   try {
-    await prisma.natalReadingRecord.create({
+    const record = await prisma.natalReadingRecord.create({
       data: {
         userId,
         context,
         phase: phase || null,
         language,
         request,
-        response
+        response: Prisma.JsonNull,
+        status: 'pending'
+      },
+      select: { id: true }
+    })
+    return record.id
+  } catch (err) {
+    logError('NATAL_RECORD_CREATE_FAIL', { userId, context, phase, language }, err)
+    return null
+  }
+}
+
+async function markNatalRecordSuccess(id: string | null, response: any) {
+  if (!id) return
+  try {
+    await prisma.natalReadingRecord.update({
+      where: { id },
+      data: {
+        response,
+        status: 'success',
+        errorMessage: null
       }
     })
   } catch (err) {
-    logError('NATAL_RECORD_SAVE_FAIL', { userId, context, phase, language }, err)
+    logError('NATAL_RECORD_SUCCESS_FAIL', { id }, err)
+  }
+}
+
+async function markNatalRecordError(id: string | null, message: string) {
+  if (!id) return
+  try {
+    await prisma.natalReadingRecord.update({
+      where: { id },
+      data: {
+        status: 'error',
+        errorMessage: message
+      }
+    })
+  } catch (err) {
+    logError('NATAL_RECORD_ERROR_FAIL', { id }, err)
   }
 }
 
@@ -718,7 +753,8 @@ async function getDailyUsage(userId: string) {
       where: {
         userId,
         createdAt: { gte: startUTC },
-        OR: [{ phase: null }, { phase: 'planets' }]
+        OR: [{ phase: null }, { phase: 'planets' }],
+        status: 'success'
       }
     })
   ])
@@ -867,6 +903,14 @@ export async function POST(req: Request) {
 
     logInfo('NATAL_AI_READING', { ...meta, userId: auth.uid, language, context })
 
+    const recordId = await createNatalRecord({
+      userId: auth.uid,
+      context,
+      phase: null,
+      language,
+      request: { partners }
+    })
+
     const bundle = buildCouplePrompt({ partners, language })
     const aiText = await askGemini(bundle, { ...meta, userId: auth.uid, language, context })
     if (!aiText) {
@@ -874,18 +918,12 @@ export async function POST(req: Request) {
       const message = language === 'en'
         ? 'Our AI astrologer is currently overloaded because many users are requesting readings at the same time. Please give us a moment to catch up and try again later—thank you for your patience!'
         : 'ဤအချိန်တွင် လူများစွာမှ တစ်ပြိုင်တည်း အသုံးပြုနေသဖြင့် AI ဖတ်ရှုမှု ဝန်ဆောင်မှုက overload ဖြစ်နေပါသည်။ နည်းနည်းနားပြီး နောက်တစ်ကြိမ် ပြန်လည်ကြိုးစားပေးပါ၊ စောင့်ဆိုင်းမှုအတွက် ကျေးဇူးတင်ပါတယ်။'
+      await markNatalRecordError(recordId, message)
       return NextResponse.json({ error: message }, { status: 502 })
     }
     try {
       const payload = shapeCoupleResponse({ aiText, lang: language })
-      await persistNatalRecord({
-        userId: auth.uid,
-        context,
-        phase: null,
-        language,
-        request: { partners },
-        response: payload
-      })
+      await markNatalRecordSuccess(recordId, payload)
       if (shouldCheckLimit && willConsumeExtra && auth.role !== 'ADMIN') {
         try {
           await prisma.user.update({ where: { id: auth.uid }, data: { extraQuota: { decrement: 1 } } })
@@ -895,6 +933,7 @@ export async function POST(req: Request) {
     } catch (err) {
       logError('NATAL_COUPLE_AI_PARSE', { ...meta, userId: auth.uid, language }, err)
       const message = err instanceof Error ? err.message : 'AI response invalid.'
+      await markNatalRecordError(recordId, message)
       return NextResponse.json({ error: message }, { status: 502 })
     }
   }
@@ -919,6 +958,23 @@ export async function POST(req: Request) {
 
   logInfo('NATAL_AI_READING', { ...meta, userId: auth.uid, phase, language, context })
 
+  const requestPayload = {
+    metadata,
+    planets,
+    houses,
+    asc,
+    mid,
+    label,
+    gender
+  }
+  const recordId = await createNatalRecord({
+    userId: auth.uid,
+    context,
+    phase,
+    language,
+    request: requestPayload
+  })
+
   const bundle = buildPrompt({ context, phase, metadata, planets, houses, asc, mid, language, label, gender })
   const aiText = await askGemini(bundle, { ...meta, userId: auth.uid, phase, language, context })
 
@@ -927,6 +983,7 @@ export async function POST(req: Request) {
     const message = language === 'en'
       ? 'Our AI astrologer is currently overloaded because many users are requesting readings at the same time. Please give us a moment to catch up and try again later—thank you for your patience!'
       : 'ဤအချိန်တွင် လူများစွာမှ တစ်ပြိုင်တည်း တောင်းဆိုနေသဖြင့် AI ဖတ်ရှုမှု ဝန်ဆောင်မှုက အပြည့်ထိန့်ကျရပ်နားနေပါသည်။ နည်းနည်းနားပြီး နောက်တစ်ကြိမ် ပြန်လည်ကြိုးစားပေးပါ၊ စောင့်ဆိုင်းမှုအတွက် ကျေးဇူးတင်ပါတယ်။'
+    await markNatalRecordError(recordId, message)
     return NextResponse.json({ error: message }, { status: 502 })
   }
 
@@ -939,22 +996,7 @@ export async function POST(req: Request) {
       houses,
       lang: language
     })
-    await persistNatalRecord({
-      userId: auth.uid,
-      context,
-      phase,
-      language,
-      request: {
-        metadata,
-        planets,
-        houses,
-        asc,
-        mid,
-        label,
-        gender
-      },
-      response: payload
-    })
+    await markNatalRecordSuccess(recordId, payload)
     if (shouldCheckLimit && willConsumeExtra && auth.role !== 'ADMIN') {
       try {
         await prisma.user.update({ where: { id: auth.uid }, data: { extraQuota: { decrement: 1 } } })
@@ -964,6 +1006,7 @@ export async function POST(req: Request) {
   } catch (err) {
     logError('NATAL_AI_PARSE', { ...meta, userId: auth.uid, phase, language, context }, err)
     const message = err instanceof Error ? err.message : 'AI response invalid.'
+    await markNatalRecordError(recordId, message)
     return NextResponse.json({ error: message }, { status: 502 })
   }
 }

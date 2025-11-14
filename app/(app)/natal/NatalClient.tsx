@@ -114,6 +114,8 @@ type NatalRecordEntry = {
   context: Mode
   phase: 'planets' | 'houses' | null
   language: Lang
+  status: 'pending' | 'success' | 'error'
+  errorMessage: string | null
   createdAt: string
   request: Record<string, any>
   response: {
@@ -159,6 +161,12 @@ const HOUSE_OPTIONS = [
 const LANGUAGE_LABEL: Record<Lang, string> = {
   en: 'English',
   my: 'မြန်မာ'
+}
+
+const RECORD_STATUS_LABEL: Record<NatalRecordEntry['status'], string> = {
+  success: 'Success',
+  pending: 'Pending',
+  error: 'Error'
 }
 
 const COPY: Record<Lang, {
@@ -719,6 +727,16 @@ export default function NatalClient({ initialLang }: { initialLang: Lang }) {
     const date = new Date(iso)
     if (Number.isNaN(date.getTime())) return iso
     return date.toLocaleString(undefined, { dateStyle: 'medium', timeStyle: 'short' })
+  }
+  const recordStatusClass = (status: NatalRecordEntry['status']) => {
+    switch (status) {
+      case 'success':
+        return 'border-emerald-400/50 text-emerald-300 bg-emerald-400/10'
+      case 'error':
+        return 'border-red-400/50 text-red-200 bg-red-500/10'
+      default:
+        return 'border-neutral-500/40 text-neutral-200 bg-black/30'
+    }
   }
   const languageLabel = (value: string) => LANGUAGE_LABEL[value as Lang] || value.toUpperCase()
 
@@ -1978,7 +1996,12 @@ export default function NatalClient({ initialLang }: { initialLang: Lang }) {
                             <p className="text-xs text-neutral-400">
                               {recordPhaseLabel(record.context, record.phase)} · {languageLabel(record.language)}
                             </p>
-                            <p className="text-[11px] text-neutral-500">{formatRecordDate(record.createdAt)}</p>
+                            <div className="mt-1 flex items-center gap-2 text-[11px]">
+                              <span className={`rounded-full px-2 py-0.5 ${recordStatusClass(record.status)}`}>
+                                {RECORD_STATUS_LABEL[record.status]}
+                              </span>
+                              <span className="text-neutral-500">{formatRecordDate(record.createdAt)}</span>
+                            </div>
                           </button>
                         </li>
                       )
@@ -1990,6 +2013,9 @@ export default function NatalClient({ initialLang }: { initialLang: Lang }) {
                 {selectedRecord ? (
                   <div className="space-y-4 max-h-[60vh] overflow-y-auto pr-1">
                     <div className="flex flex-wrap gap-2 text-[11px] uppercase tracking-[0.2em] text-neutral-400">
+                      <span className={`rounded-full px-3 py-1 text-[10px] ${recordStatusClass(selectedRecord.status)}`}>
+                        {RECORD_STATUS_LABEL[selectedRecord.status]}
+                      </span>
                       <span className="rounded-full border border-white/20 px-3 py-1 text-[10px] text-neutral-200">
                         {recordContextLabel(selectedRecord.context)}
                       </span>
@@ -2003,24 +2029,33 @@ export default function NatalClient({ initialLang }: { initialLang: Lang }) {
                         {formatRecordDate(selectedRecord.createdAt)}
                       </span>
                     </div>
+                    {selectedRecord.status === 'error' && (
+                      <p className="text-sm text-red-300">
+                        {selectedRecord.errorMessage || copy.reading.error}
+                      </p>
+                    )}
                     {renderRecordRequestMeta(selectedRecord)}
                     <div className="space-y-3">
                       <h4 className="text-xs font-semibold uppercase tracking-[0.3em] text-mok-gold">
                         {selectedRecordTopicsTitle}
                       </h4>
-                      {Array.isArray(selectedRecord.response?.topics) && selectedRecord.response.topics.length > 0 ? (
+                      {selectedRecord.status === 'success' && Array.isArray(selectedRecord.response?.topics) && selectedRecord.response.topics.length > 0 ? (
                         <div className="grid gap-3 md:grid-cols-2">
                           {selectedRecord.response.topics.map(topic => (
                             <InsightCard key={`${selectedRecord.id}-${topic.id}`} topic={topic} />
                           ))}
                         </div>
+                      ) : selectedRecord.status === 'pending' ? (
+                        <p className="text-sm text-neutral-500">AI is still processing this record.</p>
+                      ) : selectedRecord.status === 'error' ? (
+                        <p className="text-sm text-neutral-500">AI failed to generate topics for this record.</p>
                       ) : (
                         <p className="text-sm text-neutral-500">No AI topics saved for this record.</p>
                       )}
                     </div>
                     <div>
                       <h4 className="text-xs font-semibold uppercase tracking-[0.3em] text-mok-gold">{copy.reading.summaryTitle}</h4>
-                      {selectedRecord.response?.summary ? (
+                      {selectedRecord.status === 'success' && selectedRecord.response?.summary ? (
                         <div className="mt-3 rounded-2xl border border-mok-goldDeep/40 bg-gradient-to-r from-black/50 to-black/20 p-4">
                           <p className="text-sm font-semibold text-white">{selectedRecord.response.summary.title}</p>
                           <p className="mt-2 whitespace-pre-line text-sm text-neutral-200">{selectedRecord.response.summary.message}</p>
@@ -2034,8 +2069,12 @@ export default function NatalClient({ initialLang }: { initialLang: Lang }) {
                             </div>
                           )}
                         </div>
+                      ) : selectedRecord.status === 'pending' ? (
+                        <p className="mt-2 text-sm text-neutral-500">Summary will appear once AI finishes processing.</p>
+                      ) : selectedRecord.status === 'error' ? (
+                        <p className="mt-2 text-sm text-neutral-500">Summary unavailable because the AI run failed.</p>
                       ) : (
-                        <p className="mt-2 text-sm text-neutral-500">This record did not include a summary.</p>
+                        <p className="mt-2 text-sm text-neutral-500">No summary captured for this record.</p>
                       )}
                     </div>
                   </div>

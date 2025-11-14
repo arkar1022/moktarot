@@ -155,7 +155,8 @@ export async function POST(req: Request) {
         where: {
           userId: auth.uid,
           createdAt: { gte: startUTC },
-          OR: [{ phase: null }, { phase: 'planets' }]
+          OR: [{ phase: null }, { phase: 'planets' }],
+          status: 'success'
         }
       })
     ])

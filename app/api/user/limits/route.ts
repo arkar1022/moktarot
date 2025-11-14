@@ -23,7 +23,8 @@ export async function GET(req: Request) {
       where: {
         userId: auth.uid,
         createdAt: { gte: startUTC },
-        OR: [{ phase: null }, { phase: 'planets' }]
+        OR: [{ phase: null }, { phase: 'planets' }],
+        status: 'success'
       }
     })
   ])

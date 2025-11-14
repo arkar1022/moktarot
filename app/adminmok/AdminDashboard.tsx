@@ -60,6 +60,8 @@ type NatalRecord = {
   context: 'self' | 'other' | 'couple'
   phase: 'planets' | 'houses' | null
   language: 'en' | 'my'
+  status: 'pending' | 'success' | 'error'
+  errorMessage: string | null
   createdAt: string
   request: any
   response: {
@@ -140,6 +142,7 @@ export default function AdminDashboard({ users, readings, guidances, natalRecord
   const [nContextFilter, setNContextFilter] = useState<'all'|'self'|'other'|'couple'>('all')
   const [nPhaseFilter, setNPhaseFilter] = useState<'all'|'planets'|'houses'|'combined'>('all')
   const [nLangFilter, setNLangFilter] = useState<'all'|'en'|'my'>('all')
+  const [nStatusFilter, setNStatusFilter] = useState<'all'|'success'|'pending'|'error'>('all')
 
   const filteredReadings = useMemo(() => {
     const q = rQuery.trim().toLowerCase()
@@ -169,15 +172,16 @@ export default function AdminDashboard({ users, readings, guidances, natalRecord
       const okQuery = !q || userText.includes(q) || labelText.includes(q)
       const okContext = nContextFilter === 'all' || record.context === nContextFilter
       const okLang = nLangFilter === 'all' || record.language === nLangFilter
+      const okStatus = nStatusFilter === 'all' || record.status === nStatusFilter
       const okPhase =
         nPhaseFilter === 'all'
           ? true
           : nPhaseFilter === 'combined'
             ? !record.phase || record.context === 'couple'
             : record.phase === nPhaseFilter
-      return okQuery && okContext && okLang && okPhase
+      return okQuery && okContext && okLang && okPhase && okStatus
     })
-  }, [natalState, nQuery, nContextFilter, nLangFilter, nPhaseFilter])
+  }, [natalState, nQuery, nContextFilter, nLangFilter, nPhaseFilter, nStatusFilter])
   const getNatalPhaseLabel = (record: NatalRecord) => {
     if (record.context === 'couple') return 'Couple summary'
     if (!record.phase) return '—'
@@ -471,6 +475,16 @@ export default function AdminDashboard({ users, readings, guidances, natalRecord
                 <option value="my">မြန်မာ</option>
                 <option value="en">English</option>
               </select>
+              <select
+                value={nStatusFilter}
+                onChange={e => setNStatusFilter(e.target.value as any)}
+                className="h-9 rounded-md bg-black/40 border border-mok-goldDeep/40 px-2"
+              >
+                <option value="all">Any status</option>
+                <option value="success">Success</option>
+                <option value="pending">Pending</option>
+                <option value="error">Error</option>
+              </select>
             </div>
             <div className="text-xs text-neutral-400">
               Total records: <span className="text-mok-gold">{natalState.length}</span>
@@ -488,6 +502,7 @@ export default function AdminDashboard({ users, readings, guidances, natalRecord
                     <th className="p-2 text-left">Context</th>
                     <th className="p-2 text-left">Phase</th>
                     <th className="p-2 text-left">Language</th>
+                    <th className="p-2 text-left">Status</th>
                     <th className="p-2 text-left">Label</th>
                   </tr>
                 </thead>
@@ -513,6 +528,11 @@ export default function AdminDashboard({ users, readings, guidances, natalRecord
                       </td>
                       <td className="p-2 whitespace-nowrap">{getNatalPhaseLabel(record)}</td>
                       <td className="p-2 whitespace-nowrap">{record.language === 'en' ? 'English' : 'မြန်မာ'}</td>
+                      <td className="p-2">
+                        <span className={`inline-flex rounded-full border px-2 py-0.5 text-[11px] ${natalStatusClass(record.status)}`}>
+                          {record.status}
+                        </span>
+                      </td>
                       <td className="p-2">
                         <div className="line-clamp-2 text-neutral-300">
                           {typeof record.request?.label === 'string' ? record.request.label : '—'}
@@ -1416,6 +1436,17 @@ function formatOffsetMinutes(value?: number | null) {
   const hours = Math.floor(abs / 60)
   const mins = abs % 60
   return `UTC${sign}${hours.toString().padStart(2, '0')}:${mins.toString().padStart(2, '0')}`
+}
+
+const natalStatusClass = (status: 'pending' | 'success' | 'error') => {
+  switch (status) {
+    case 'success':
+      return 'border-emerald-500/40 text-emerald-300 bg-emerald-500/10'
+    case 'error':
+      return 'border-red-500/50 text-red-200 bg-red-500/10'
+    default:
+      return 'border-neutral-500/50 text-neutral-200 bg-black/30'
+  }
 }
 
 const ZODIAC_SIGNS = ['ARIES','TAURUS','GEMINI','CANCER','LEO','VIRGO','LIBRA','SCORPIO','SAGITTARIUS','CAPRICORN','AQUARIUS','PISCES'] as const

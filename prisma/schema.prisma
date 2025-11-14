@@ -208,6 +208,8 @@ model NatalReadingRecord {
   language  String
   request   Json
   response  Json
+  status    String   @default("pending")
+  errorMessage String?
   createdAt DateTime @default(now())
 
   @@index([userId, createdAt])

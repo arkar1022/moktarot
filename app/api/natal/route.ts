@@ -1,4 +1,5 @@
 import { NextResponse } from 'next/server'
+import { existsSync } from 'node:fs'
 import path from 'node:path'
 import { utc_to_jd, calc, houses_ex2, constants, set_ephe_path } from 'sweph'
 
@@ -25,16 +26,30 @@ const PLANETS = [
 const HOUSE_SYSTEMS = new Set(['P','K','O','R','C','B','M','X','H','G','T','U','F','D','J','E','V','Y','W','Q'])
 
 function ensureEphePath() {
-  if (!epheInitialized) {
+  if (epheInitialized) return
+
+  const customPath = process.env.SWEPH_DATA_PATH
+    ? path.resolve(process.cwd(), process.env.SWEPH_DATA_PATH)
+    : null
+
+  const candidates = [customPath, path.join(process.cwd(), 'public', 'ephe')].filter(
+    (value): value is string => Boolean(value)
+  )
+
+  for (const candidate of candidates) {
     try {
-      const ephePath = path.join(process.cwd(), 'public', 'ephe')
-      set_ephe_path(ephePath)
-    } catch (error) {
-      console.warn('[NATAL][EPHE] unable to set ephemeris path', error)
-    } finally {
+      if (!existsSync(candidate)) continue
+      set_ephe_path(candidate)
+      console.info('[NATAL][EPHE] using ephemeris directory', candidate)
       epheInitialized = true
+      return
+    } catch (error) {
+      console.warn('[NATAL][EPHE] failed to set ephemeris path', candidate, error)
     }
   }
+
+  epheInitialized = true
+  console.warn('[NATAL][EPHE] unable to locate ephemeris directory. Tried:', candidates.join(', '))
 }
 
 function normalizeDegrees(value: number) {

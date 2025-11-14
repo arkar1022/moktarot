@@ -43,6 +43,8 @@ export default async function AdminPage() {
           context: record.context as 'self' | 'other' | 'couple',
           phase: (record.phase as 'planets' | 'houses' | null) ?? null,
           language: record.language as 'en' | 'my',
+          status: record.status as 'pending' | 'success' | 'error',
+          errorMessage: record.errorMessage,
           request: record.request as any,
           response: record.response as any,
           createdAt: record.createdAt.toISOString(),

@@ -28,6 +28,8 @@ export async function GET(req: Request) {
       context: row.context as ReadingContext,
       phase: (row.phase as Phase | null) || null,
       language: row.language as Lang,
+      status: row.status as 'pending' | 'success' | 'error',
+      errorMessage: row.errorMessage || null,
       createdAt: row.createdAt.toISOString(),
       request: row.request,
       response: row.response
