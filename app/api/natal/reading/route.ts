@@ -638,6 +638,52 @@ async function askGemini(bundle: PromptBundle, trace: Record<string, any> = {}) 
   return null
 }
 
+async function askOpenAI(bundle: PromptBundle, trace: Record<string, any> = {}) {
+  const key = process.env.OPENAI_API_KEY
+  if (!key) return null
+  const model = (process.env.OPENAI_MODEL || 'gpt-4o-mini').trim()
+  try {
+    const res = await fetch('https://api.openai.com/v1/chat/completions', {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        Authorization: `Bearer ${key}`
+      },
+      body: JSON.stringify({
+        model,
+        temperature: 0.85,
+        response_format: { type: 'json_object' },
+        messages: [
+          { role: 'system', content: bundle.system },
+          { role: 'user', content: `${bundle.user}\n\nRespond with JSON only.` }
+        ]
+      })
+    })
+    const json = await res.json().catch(() => ({}))
+    const text = json?.choices?.[0]?.message?.content
+    if (!res.ok) {
+      logError(
+        'NATAL_OPENAI_HTTP',
+        { ...trace, status: res.status, response: summarizeOpenAIResponse(json) },
+        new Error(json?.error?.message || 'OpenAI HTTP error')
+      )
+      return null
+    }
+    if (typeof text !== 'string' || !text.trim()) {
+      logError(
+        'NATAL_OPENAI_EMPTY_TEXT',
+        { ...trace, status: res.status, response: summarizeOpenAIResponse(json) },
+        new Error('OpenAI returned no text payload')
+      )
+      return null
+    }
+    return text
+  } catch (err) {
+    logError('NATAL_READING_OPENAI', trace, err)
+  }
+  return null
+}
+
 function extractJson(text: string | null) {
   if (!text) return null
   const trimmed = text.trim()
@@ -823,6 +869,16 @@ function summarizeGeminiResponse(payload: any) {
   }
 }
 
+function summarizeOpenAIResponse(payload: any) {
+  if (!payload || typeof payload !== 'object') return undefined
+  try {
+    const json = JSON.stringify(payload)
+    return json.length > 1000 ? `${json.slice(0, 1000)}…` : json
+  } catch {
+    return undefined
+  }
+}
+
 function shapeResponse(args: {
   context: Extract<ReadingContext, 'self' | 'other'>
   phase: Phase
@@ -912,7 +968,10 @@ export async function POST(req: Request) {
     })
 
     const bundle = buildCouplePrompt({ partners, language })
-    const aiText = await askGemini(bundle, { ...meta, userId: auth.uid, language, context })
+    let aiText = await askGemini(bundle, { ...meta, userId: auth.uid, language, context })
+    if (!aiText) {
+      aiText = await askOpenAI(bundle, { ...meta, userId: auth.uid, language, context })
+    }
     if (!aiText) {
       logError('NATAL_COUPLE_AI_EMPTY', { ...meta, userId: auth.uid, language })
       const message = language === 'en'
@@ -976,7 +1035,10 @@ export async function POST(req: Request) {
   })
 
   const bundle = buildPrompt({ context, phase, metadata, planets, houses, asc, mid, language, label, gender })
-  const aiText = await askGemini(bundle, { ...meta, userId: auth.uid, phase, language, context })
+  let aiText = await askGemini(bundle, { ...meta, userId: auth.uid, phase, language, context })
+  if (!aiText) {
+    aiText = await askOpenAI(bundle, { ...meta, userId: auth.uid, phase, language, context })
+  }
 
   if (!aiText) {
     logError('NATAL_AI_EMPTY', { ...meta, userId: auth.uid, phase, language, context })
