@@ -968,9 +968,9 @@ export async function POST(req: Request) {
     })
 
     const bundle = buildCouplePrompt({ partners, language })
-    let aiText = await askGemini(bundle, { ...meta, userId: auth.uid, language, context })
+    let aiText = await askOpenAI(bundle, { ...meta, userId: auth.uid, language, context })
     if (!aiText) {
-      aiText = await askOpenAI(bundle, { ...meta, userId: auth.uid, language, context })
+      aiText = await askGemini(bundle, { ...meta, userId: auth.uid, language, context })
     }
     if (!aiText) {
       logError('NATAL_COUPLE_AI_EMPTY', { ...meta, userId: auth.uid, language })
@@ -1035,9 +1035,9 @@ export async function POST(req: Request) {
   })
 
   const bundle = buildPrompt({ context, phase, metadata, planets, houses, asc, mid, language, label, gender })
-  let aiText = await askGemini(bundle, { ...meta, userId: auth.uid, phase, language, context })
+  let aiText = await askOpenAI(bundle, { ...meta, userId: auth.uid, phase, language, context })
   if (!aiText) {
-    aiText = await askOpenAI(bundle, { ...meta, userId: auth.uid, phase, language, context })
+    aiText = await askGemini(bundle, { ...meta, userId: auth.uid, phase, language, context })
   }
 
   if (!aiText) {
