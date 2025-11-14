@@ -17,7 +17,17 @@ export async function GET(req: Request) {
 
   const now = new Date()
   const startUTC = new Date(Date.UTC(now.getUTCFullYear(), now.getUTCMonth(), now.getUTCDate(), 0, 0, 0))
-  const usedToday = await prisma.reading.count({ where: { userId: auth.uid, createdAt: { gte: startUTC } } })
+  const [tarotCount, natalCount] = await Promise.all([
+    prisma.reading.count({ where: { userId: auth.uid, createdAt: { gte: startUTC } } }),
+    prisma.natalReadingRecord.count({
+      where: {
+        userId: auth.uid,
+        createdAt: { gte: startUTC },
+        OR: [{ phase: null }, { phase: 'planets' }]
+      }
+    })
+  ])
+  const usedToday = tarotCount + natalCount
   const remainingToday = Math.max(0, dailyLimit - usedToday)
 
   return NextResponse.json({ dailyLimit, usedToday, remainingToday, extraQuota })

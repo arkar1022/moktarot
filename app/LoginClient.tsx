@@ -110,6 +110,8 @@ export default function LoginClient({ initialLang }: { initialLang: Lang }) {
   const [gender, setGender] = useState<'male'|'female'|'other'|''>('' as any)
   const [age, setAge] = useState('')
   const [password, setPassword] = useState('')
+  const [showLoginPassword, setShowLoginPassword] = useState(false)
+  const [showRegisterPassword, setShowRegisterPassword] = useState(false)
   const [error, setError] = useState<string | null>(null)
   const [info, setInfo] = useState<string | null>(null)
   const [loading, setLoading] = useState(false)
@@ -232,7 +234,22 @@ export default function LoginClient({ initialLang }: { initialLang: Lang }) {
             <p className="text-sm text-mok-goldLight">{method==='email' ? email : `+${phoneCode} ${phoneNumber}`}</p>
             <div>
               <label className="block mb-1 text-sm text-mok-goldLight">{copy.passwordLabel}</label>
-              <input value={password} onChange={(e)=>setPassword(e.target.value)} type="password" className="w-full rounded-md bg-black/50 border border-mok-goldDeep/40 px-3 py-2 outline-none focus:border-mok-gold" />
+              <div className="relative">
+                <input
+                  value={password}
+                  onChange={(e)=>setPassword(e.target.value)}
+                  type={showLoginPassword ? 'text' : 'password'}
+                  className="w-full rounded-md bg-black/50 border border-mok-goldDeep/40 px-3 py-2 pr-12 outline-none focus:border-mok-gold"
+                />
+                <button
+                  type="button"
+                  onClick={()=>setShowLoginPassword(prev => !prev)}
+                  className="absolute inset-y-0 right-3 flex items-center text-mok-gold/70 hover:text-mok-gold"
+                  aria-label={showLoginPassword ? 'Hide password' : 'Show password'}
+                >
+                  {showLoginPassword ? <EyeOffIcon className="h-4 w-4" /> : <EyeIcon className="h-4 w-4" />}
+                </button>
+              </div>
             </div>
             {error && <p className="text-red-400 text-sm">{error}</p>}
             <div className="flex gap-2">
@@ -263,7 +280,22 @@ export default function LoginClient({ initialLang }: { initialLang: Lang }) {
             </div>
             <div>
               <label className="block mb-1 text-sm text-mok-goldLight">{copy.registerPassword}</label>
-              <input value={password} onChange={(e)=>setPassword(e.target.value)} type="password" className="w-full rounded-md bg-black/50 border border-mok-goldDeep/40 px-3 py-2 outline-none focus:border-mok-gold" />
+              <div className="relative">
+                <input
+                  value={password}
+                  onChange={(e)=>setPassword(e.target.value)}
+                  type={showRegisterPassword ? 'text' : 'password'}
+                  className="w-full rounded-md bg-black/50 border border-mok-goldDeep/40 px-3 py-2 pr-12 outline-none focus:border-mok-gold"
+                />
+                <button
+                  type="button"
+                  onClick={()=>setShowRegisterPassword(prev => !prev)}
+                  className="absolute inset-y-0 right-3 flex items-center text-mok-gold/70 hover:text-mok-gold"
+                  aria-label={showRegisterPassword ? 'Hide password' : 'Show password'}
+                >
+                  {showRegisterPassword ? <EyeOffIcon className="h-4 w-4" /> : <EyeIcon className="h-4 w-4" />}
+                </button>
+              </div>
             </div>
             <label className="flex items-start gap-2 text-xs text-neutral-400">
               <input type="checkbox" checked={agree} onChange={(e)=>setAgree(e.target.checked)} className="mt-1"/>
@@ -309,5 +341,25 @@ export default function LoginClient({ initialLang }: { initialLang: Lang }) {
         </div>
       )}
     </main>
+  )
+}
+
+function EyeIcon(props: React.SVGProps<SVGSVGElement>) {
+  return (
+    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={1.8} strokeLinecap="round" strokeLinejoin="round" {...props}>
+      <path d="M1.5 12s4-7 10.5-7 10.5 7 10.5 7-4 7-10.5 7-10.5-7-10.5-7z" />
+      <circle cx="12" cy="12" r="3.25" />
+    </svg>
+  )
+}
+
+function EyeOffIcon(props: React.SVGProps<SVGSVGElement>) {
+  return (
+    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={1.8} strokeLinecap="round" strokeLinejoin="round" {...props}>
+      <path d="M1.5 12s4-7 10.5-7c2.2 0 4.07.7 5.62 1.68" />
+      <path d="M22.5 12s-4 7-10.5 7c-2.27 0-4.2-.75-5.8-1.79" />
+      <path d="M9.88 9.88a3.25 3.25 0 004.24 4.24" />
+      <line x1="4" y1="4" x2="20" y2="20" />
+    </svg>
   )
 }

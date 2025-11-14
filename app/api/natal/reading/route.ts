@@ -1,6 +1,7 @@
 import { NextResponse } from 'next/server'
 import { getAuth } from '@/lib/auth'
 import { logError, logInfo, reqMeta } from '@/lib/log'
+import { prisma } from '@/lib/prisma'
 
 type Lang = 'my' | 'en'
 type Phase = 'planets' | 'houses'
@@ -680,6 +681,50 @@ function getPronouns(gender: Gender, lang: Lang): PronounSet {
   return map[gender] || map.unspecified
 }
 
+async function persistNatalRecord(args: {
+  userId: string
+  context: ReadingContext
+  phase?: Phase | null
+  language: Lang
+  request: any
+  response: any
+}) {
+  const { userId, context, phase, language, request, response } = args
+  try {
+    await prisma.natalReadingRecord.create({
+      data: {
+        userId,
+        context,
+        phase: phase || null,
+        language,
+        request,
+        response
+      }
+    })
+  } catch (err) {
+    logError('NATAL_RECORD_SAVE_FAIL', { userId, context, phase, language }, err)
+  }
+}
+
+async function getDailyUsage(userId: string) {
+  const user = await prisma.user.findUnique({ where: { id: userId }, select: { dailyLimit: true, extraQuota: true } }).catch(() => null as any)
+  const limit = user?.dailyLimit ?? Number(process.env.DAILY_READING_LIMIT || 3)
+  const extraQuota = user?.extraQuota ?? 0
+  const now = new Date()
+  const startUTC = new Date(Date.UTC(now.getUTCFullYear(), now.getUTCMonth(), now.getUTCDate(), 0, 0, 0))
+  const [tarotCount, natalCount] = await Promise.all([
+    prisma.reading.count({ where: { userId, createdAt: { gte: startUTC } } }),
+    prisma.natalReadingRecord.count({
+      where: {
+        userId,
+        createdAt: { gte: startUTC },
+        OR: [{ phase: null }, { phase: 'planets' }]
+      }
+    })
+  ])
+  return { limit, used: tarotCount + natalCount, extraQuota }
+}
+
 function mergeTopics(raw: any, descriptors: Array<PlanetDescriptor | HouseDescriptor>, lang: Lang): ReadingTopic[] {
   if (!Array.isArray(raw?.topics)) {
     throw new Error('AI did not return topics.')
@@ -792,6 +837,22 @@ export async function POST(req: Request) {
   const phase: Phase = body?.phase === 'houses' ? 'houses' : 'planets'
   const language: Lang = body?.language === 'en' ? 'en' : 'my'
 
+  const shouldCheckLimit = context === 'couple' || phase === 'planets'
+  let willConsumeExtra = false
+  if (shouldCheckLimit) {
+    const usage = await getDailyUsage(auth.uid)
+    if (usage.used >= usage.limit) {
+      if (usage.extraQuota > 0) {
+        willConsumeExtra = true
+      } else {
+        const message = language === 'en'
+          ? `Daily question limit of ${usage.limit} reached. Come back tomorrow or purchase more questions on Telegram.`
+          : `ယနေ့အတွက် မေးခွန်း ${usage.limit} ကြိမ် ပြည့်ပြီးပါပြီ`
+        return NextResponse.json({ error: message }, { status: 429 })
+      }
+    }
+  }
+
   if (context === 'couple') {
     const partnerEntries = Array.isArray(body?.partners) ? body.partners : []
     if (partnerEntries.length !== 2) {
@@ -810,10 +871,26 @@ export async function POST(req: Request) {
     const aiText = await askGemini(bundle, { ...meta, userId: auth.uid, language, context })
     if (!aiText) {
       logError('NATAL_COUPLE_AI_EMPTY', { ...meta, userId: auth.uid, language })
-      return NextResponse.json({ error: 'AI response unavailable. Try again in a moment.' }, { status: 502 })
+      const message = language === 'en'
+        ? 'Our AI astrologer is currently overloaded because many users are requesting readings at the same time. Please give us a moment to catch up and try again later—thank you for your patience!'
+        : 'ဤအချိန်တွင် လူများစွာမှ တစ်ပြိုင်တည်း အသုံးပြုနေသဖြင့် AI ဖတ်ရှုမှု ဝန်ဆောင်မှုက overload ဖြစ်နေပါသည်။ နည်းနည်းနားပြီး နောက်တစ်ကြိမ် ပြန်လည်ကြိုးစားပေးပါ၊ စောင့်ဆိုင်းမှုအတွက် ကျေးဇူးတင်ပါတယ်။'
+      return NextResponse.json({ error: message }, { status: 502 })
     }
     try {
       const payload = shapeCoupleResponse({ aiText, lang: language })
+      await persistNatalRecord({
+        userId: auth.uid,
+        context,
+        phase: null,
+        language,
+        request: { partners },
+        response: payload
+      })
+      if (shouldCheckLimit && willConsumeExtra && auth.role !== 'ADMIN') {
+        try {
+          await prisma.user.update({ where: { id: auth.uid }, data: { extraQuota: { decrement: 1 } } })
+        } catch {}
+      }
       return NextResponse.json(payload)
     } catch (err) {
       logError('NATAL_COUPLE_AI_PARSE', { ...meta, userId: auth.uid, language }, err)
@@ -847,7 +924,10 @@ export async function POST(req: Request) {
 
   if (!aiText) {
     logError('NATAL_AI_EMPTY', { ...meta, userId: auth.uid, phase, language, context })
-    return NextResponse.json({ error: 'AI response unavailable. Try again in a moment.' }, { status: 502 })
+    const message = language === 'en'
+      ? 'Our AI astrologer is currently overloaded because many users are requesting readings at the same time. Please give us a moment to catch up and try again later—thank you for your patience!'
+      : 'ဤအချိန်တွင် လူများစွာမှ တစ်ပြိုင်တည်း တောင်းဆိုနေသဖြင့် AI ဖတ်ရှုမှု ဝန်ဆောင်မှုက အပြည့်ထိန့်ကျရပ်နားနေပါသည်။ နည်းနည်းနားပြီး နောက်တစ်ကြိမ် ပြန်လည်ကြိုးစားပေးပါ၊ စောင့်ဆိုင်းမှုအတွက် ကျေးဇူးတင်ပါတယ်။'
+    return NextResponse.json({ error: message }, { status: 502 })
   }
 
   try {
@@ -859,6 +939,27 @@ export async function POST(req: Request) {
       houses,
       lang: language
     })
+    await persistNatalRecord({
+      userId: auth.uid,
+      context,
+      phase,
+      language,
+      request: {
+        metadata,
+        planets,
+        houses,
+        asc,
+        mid,
+        label,
+        gender
+      },
+      response: payload
+    })
+    if (shouldCheckLimit && willConsumeExtra && auth.role !== 'ADMIN') {
+      try {
+        await prisma.user.update({ where: { id: auth.uid }, data: { extraQuota: { decrement: 1 } } })
+      } catch {}
+    }
     return NextResponse.json(payload)
   } catch (err) {
     logError('NATAL_AI_PARSE', { ...meta, userId: auth.uid, phase, language, context }, err)

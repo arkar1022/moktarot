@@ -149,9 +149,17 @@ export async function POST(req: Request) {
     const limit = dbUser?.dailyLimit ?? Number(process.env.DAILY_READING_LIMIT || 3)
     const now = new Date()
     const startUTC = new Date(Date.UTC(now.getUTCFullYear(), now.getUTCMonth(), now.getUTCDate(), 0, 0, 0))
-    const countToday = await prisma.reading.count({
-      where: { userId: auth.uid, createdAt: { gte: startUTC } }
-    })
+    const [tarotCount, natalCount] = await Promise.all([
+      prisma.reading.count({ where: { userId: auth.uid, createdAt: { gte: startUTC } } }),
+      prisma.natalReadingRecord.count({
+        where: {
+          userId: auth.uid,
+          createdAt: { gte: startUTC },
+          OR: [{ phase: null }, { phase: 'planets' }]
+        }
+      })
+    ])
+    const countToday = tarotCount + natalCount
     if (countToday >= limit) {
       // Allow if extra quota remains; consume one
       if (dbUser && (dbUser.extraQuota ?? 0) > 0) {

@@ -1,6 +1,7 @@
 'use client'
 
-import { FormEvent, useEffect, useMemo, useState } from 'react'
+import Image from 'next/image'
+import { FormEvent, useCallback, useEffect, useMemo, useState } from 'react'
 import dynamic from 'next/dynamic'
 import NatalChartWheel, { PlanetGlyph, HouseLine } from './NatalChartWheel'
 import { NATAL_LOCATIONS } from '@/lib/natal/locations'
@@ -108,6 +109,21 @@ type CoupleResultState = {
   partnerB: NatalResponse
 }
 
+type NatalRecordEntry = {
+  id: string
+  context: Mode
+  phase: 'planets' | 'houses' | null
+  language: Lang
+  createdAt: string
+  request: Record<string, any>
+  response: {
+    topics?: ReadingTopic[]
+    summary?: ReadingSummary | null
+    context?: string
+    phase?: string
+  } | null
+}
+
 type PersonKey = 'self' | 'other'
 type CoupleKey = 'partnerA' | 'partnerB'
 
@@ -139,6 +155,11 @@ const HOUSE_OPTIONS = [
   { value: 'W', en: 'Whole Sign', my: 'Whole Sign)' },
   { value: 'E', en: 'Equal', my: 'Equal' }
 ]
+
+const LANGUAGE_LABEL: Record<Lang, string> = {
+  en: 'English',
+  my: 'မြန်မာ'
+}
 
 const COPY: Record<Lang, {
   tabs: Record<Mode, { title: string; description: string }>
@@ -175,6 +196,12 @@ const COPY: Record<Lang, {
   chartTitle: string
   loading: string
   empty: string
+  limit: {
+    title: string
+    body: string
+    cta: string
+    close: string
+  }
   reading: {
     title: string
     subtitle: string
@@ -243,6 +270,12 @@ const COPY: Record<Lang, {
     chartTitle: 'Wheel View',
     loading: 'Generating chart...',
     empty: 'Submit your birth information to see the chart.',
+    limit: {
+      title: 'Daily question limit reached',
+      body: 'You already used today’s free readings. Purchase more questions on Telegram to continue.',
+      cta: 'Buy more questions',
+      close: 'Close'
+    },
     reading: {
       title: 'AI Interpretation',
       subtitle: 'Planet insights arrive first; houses and the summary follow when ready.',
@@ -319,6 +352,12 @@ const COPY: Record<Lang, {
     chartTitle: 'ဇာတာခွင်',
     loading: 'တွက်နေပါသည်...',
     empty: 'မွေးသက်ဝင်ချက်များကို ထည့်သွင်းပြီး တောင်းဆိုပါ။',
+    limit: {
+      title: 'နေ့စဉ် ကန့်သတ်မေးခွန်း ပြည့်ပါပြီ',
+      body: 'ယနေ့အတွက် မေးခွန်း ၃ ကြိမ်အား အသုံးပြုပြီးဖြစ်သည်။ Telegram မှ မေးခွန်း ဝယ်ယူကာ ဆက်လက် ဖတ်ရှုနိုင်ပါသည်။',
+      cta: 'မေးခွန်း ဝယ်ယူရန်',
+      close: 'ပိတ်မယ်'
+    },
     reading: {
       title: 'AI ဖော်ပြချက်',
       subtitle: 'ဂြိုလ်အပိုင်းကို ဖော်ပြပြီးနောက် ဂြိုလ်အိမ်များနှင့် ကို ဆက်လက် တွက်ပေးနေသည်။',
@@ -523,6 +562,31 @@ export default function NatalClient({ initialLang }: { initialLang: Lang }) {
     partnerA: { label: copy.relationship.partnerLabels.first, gender: 'female' },
     partnerB: { label: copy.relationship.partnerLabels.second, gender: 'male' }
   })
+  const [showRecordModal, setShowRecordModal] = useState(false)
+  const [recordsLoading, setRecordsLoading] = useState(false)
+  const [recordsError, setRecordsError] = useState<string | null>(null)
+  const [natalRecords, setNatalRecords] = useState<NatalRecordEntry[]>([])
+  const [selectedRecordId, setSelectedRecordId] = useState<string | null>(null)
+  const [recordsLoaded, setRecordsLoaded] = useState(false)
+  const selectedRecord = useMemo(
+    () => natalRecords.find(entry => entry.id === selectedRecordId) || null,
+    [natalRecords, selectedRecordId]
+  )
+  const selectedRecordTopicsTitle = selectedRecord
+    ? selectedRecord.context === 'couple'
+      ? copy.relationship.topicsTitle
+      : selectedRecord.phase === 'houses'
+        ? copy.reading.housesTitle
+        : copy.reading.planetsTitle
+    : copy.reading.planetsTitle
+  const [limitModal, setLimitModal] = useState(false)
+  const [limitMsg, setLimitMsg] = useState('')
+
+  useEffect(() => {
+    if (limitModal && !limitMsg) {
+      setLimitMsg(copy.limit.body)
+    }
+  }, [limitModal, limitMsg, copy.limit.body])
 
   const countryOptions = useMemo(() => {
     return Array.from(new Set(NATAL_LOCATIONS.map(loc => loc.country))).sort()
@@ -606,6 +670,120 @@ export default function NatalClient({ initialLang }: { initialLang: Lang }) {
   const presetNotice = (entry: ReturnType<typeof findLocationMatch>) =>
     entry ? copy.helperDropdown.notice.replace('{tz}', formatOffsetHours(entry.tzOffsetHours)) : ''
 
+  const fetchRecords = useCallback(async () => {
+    setRecordsLoading(true)
+    setRecordsError(null)
+    try {
+      const res = await fetch('/api/natal/history?limit=200')
+      const data = await res.json()
+      if (!res.ok) {
+        throw new Error(data?.error || copy.reading.error)
+      }
+      const items: NatalRecordEntry[] = Array.isArray(data?.records) ? data.records : []
+      setNatalRecords(items)
+      setSelectedRecordId(prev => {
+        if (prev && items.some(item => item.id === prev)) return prev
+        return items[0]?.id ?? null
+      })
+    } catch (err) {
+      const message = err instanceof Error ? err.message : copy.reading.error
+      setRecordsError(message)
+    } finally {
+      setRecordsLoading(false)
+    }
+  }, [copy.reading.error])
+
+  const openRecordsModal = () => {
+    setShowRecordModal(true)
+    if (!recordsLoaded) {
+      setRecordsLoaded(true)
+      fetchRecords()
+    }
+  }
+
+  const closeRecordsModal = () => setShowRecordModal(false)
+  const refreshRecords = () => fetchRecords()
+  const openLimitModal = useCallback((message?: string) => {
+    setLimitMsg(message && typeof message === 'string' ? message : copy.limit.body)
+    setLimitModal(true)
+  }, [copy.limit.body])
+  const closeLimitModal = () => setLimitModal(false)
+  const recordContextLabel = (context: Mode) => (context === 'couple' ? copy.relationship.title : copy.tabs[context].title)
+  const recordPhaseLabel = (context: Mode, phase: 'planets' | 'houses' | null) => {
+    if (context === 'couple') return copy.relationship.topicsTitle
+    if (!phase) return copy.reading.title
+    return phase === 'planets' ? copy.reading.planetsTitle : copy.reading.housesTitle
+  }
+
+  const formatRecordDate = (iso: string) => {
+    const date = new Date(iso)
+    if (Number.isNaN(date.getTime())) return iso
+    return date.toLocaleString(undefined, { dateStyle: 'medium', timeStyle: 'short' })
+  }
+  const languageLabel = (value: string) => LANGUAGE_LABEL[value as Lang] || value.toUpperCase()
+
+  const renderRecordRequestMeta = (record: NatalRecordEntry | null) => {
+    if (!record) return null
+    if (record.context === 'couple' && Array.isArray(record.request?.partners)) {
+      return (
+        <div className="space-y-3">
+          {record.request.partners.map((partner: any, idx: number) => {
+            const meta = partner?.metadata || {}
+            const lat = typeof meta.latitude === 'number' ? meta.latitude.toFixed(2) : meta.latitude
+            const lon = typeof meta.longitude === 'number' ? meta.longitude.toFixed(2) : meta.longitude
+            const tz = typeof meta.timezoneMinutes === 'number' ? formatOffset(meta.timezoneMinutes) : null
+            const fallbackLabel = idx === 0 ? copy.relationship.partnerLabels.first : copy.relationship.partnerLabels.second
+            return (
+              <div key={`${partner?.label ?? idx}`} className="rounded-xl border border-mok-goldDeep/30 bg-black/30 p-3">
+                <p className="text-sm font-semibold text-white">{partner?.label || fallbackLabel}</p>
+                <p className="text-xs text-neutral-400 capitalize">{partner?.gender}</p>
+                <ul className="mt-2 space-y-1 text-xs text-neutral-300">
+                  {meta?.birthDate && (
+                    <li>{meta.birthDate}{meta.birthTime ? ` · ${meta.birthTime}` : ''}</li>
+                  )}
+                  {(lat || lon) && (
+                    <li>
+                      {lat ? `lat ${lat}` : ''}{lat && lon ? ', ' : ''}{lon ? `lon ${lon}` : ''}
+                    </li>
+                  )}
+                  {typeof meta.timezoneMinutes === 'number' && (
+                    <li>{tz}</li>
+                  )}
+                  {meta.houseSystem && <li>House: {meta.houseSystem}</li>}
+                </ul>
+              </div>
+            )
+          })}
+        </div>
+      )
+    }
+    const meta = record.request?.metadata || {}
+    const lat = typeof meta.latitude === 'number' ? meta.latitude.toFixed(2) : meta.latitude
+    const lon = typeof meta.longitude === 'number' ? meta.longitude.toFixed(2) : meta.longitude
+    const tz = typeof meta.timezoneMinutes === 'number' ? formatOffset(meta.timezoneMinutes) : null
+    const label = record.request?.label || recordContextLabel(record.context)
+    return (
+      <div className="rounded-xl border border-mok-goldDeep/30 bg-black/30 p-3">
+        <p className="text-sm font-semibold text-white">{label}</p>
+        {record.request?.gender && (
+          <p className="text-xs text-neutral-400 capitalize">{record.request.gender}</p>
+        )}
+        <ul className="mt-2 space-y-1 text-xs text-neutral-300">
+          {meta.birthDate && (
+            <li>{meta.birthDate}{meta.birthTime ? ` · ${meta.birthTime}` : ''}</li>
+          )}
+          {(lat || lon) && (
+            <li>
+              {lat ? `lat ${lat}` : ''}{lat && lon ? ', ' : ''}{lon ? `lon ${lon}` : ''}
+            </li>
+          )}
+          {typeof meta.timezoneMinutes === 'number' && <li>{tz}</li>}
+          {meta.houseSystem && <li>House: {meta.houseSystem}</li>}
+        </ul>
+      </div>
+    )
+  }
+
   const activePersonKey: PersonKey = mode === 'self' ? 'self' : 'other'
   const activeForm = personForms[activePersonKey]
   const activeResult = singleResults[activePersonKey]
@@ -670,7 +848,7 @@ export default function NatalClient({ initialLang }: { initialLang: Lang }) {
       [context]: { ...prev[context], planetInsights: [], houseInsights: [], summary: null, status: 'planets', error: null }
     }))
 
-    async function requestPhase(phase: 'planets' | 'houses') {
+    async function requestPhase(phase: 'planets' | 'houses'): Promise<{ topics: ReadingTopic[]; summary?: ReadingSummary } | null> {
       const res = await fetch('/api/natal/reading', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
@@ -689,6 +867,10 @@ export default function NatalClient({ initialLang }: { initialLang: Lang }) {
         signal: controller.signal
       })
       const data = await res.json().catch(() => ({}))
+      if (res.status === 429) {
+        if (!cancelled) openLimitModal(typeof data?.error === 'string' ? data.error : undefined)
+        return null
+      }
       if (!res.ok) throw new Error(data?.error || copy.reading.error)
       return data as { topics: ReadingTopic[]; summary?: ReadingSummary }
     }
@@ -696,6 +878,13 @@ export default function NatalClient({ initialLang }: { initialLang: Lang }) {
     ;(async () => {
       try {
         const planetData = await requestPhase('planets')
+        if (!planetData) {
+          setReadingStates(prev => ({
+            ...prev,
+            [context]: { ...prev[context], status: 'idle' }
+          }))
+          return
+        }
         if (cancelled) return
         setReadingStates(prev => ({
           ...prev,
@@ -706,6 +895,7 @@ export default function NatalClient({ initialLang }: { initialLang: Lang }) {
           }
         }))
         const houseData = await requestPhase('houses')
+        if (!houseData) return
         if (cancelled) return
         setReadingStates(prev => ({
           ...prev,
@@ -729,7 +919,7 @@ export default function NatalClient({ initialLang }: { initialLang: Lang }) {
       cancelled = true
       controller.abort()
     }
-  }, [singleResults.self, lang, submittedLabels.self, submittedGenders.self, copy.reading.error])
+  }, [singleResults.self, lang, submittedLabels.self, submittedGenders.self, copy.reading.error, openLimitModal])
 
   useEffect(() => {
     const base = singleResults.other
@@ -743,7 +933,7 @@ export default function NatalClient({ initialLang }: { initialLang: Lang }) {
       [context]: { ...prev[context], planetInsights: [], houseInsights: [], summary: null, status: 'planets', error: null }
     }))
 
-    async function requestPhase(phase: 'planets' | 'houses') {
+    async function requestPhase(phase: 'planets' | 'houses'): Promise<{ topics: ReadingTopic[]; summary?: ReadingSummary } | null> {
       const res = await fetch('/api/natal/reading', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
@@ -762,6 +952,10 @@ export default function NatalClient({ initialLang }: { initialLang: Lang }) {
         signal: controller.signal
       })
       const data = await res.json().catch(() => ({}))
+      if (res.status === 429) {
+        if (!cancelled) openLimitModal(typeof data?.error === 'string' ? data.error : undefined)
+        return null
+      }
       if (!res.ok) throw new Error(data?.error || copy.reading.error)
       return data as { topics: ReadingTopic[]; summary?: ReadingSummary }
     }
@@ -769,6 +963,13 @@ export default function NatalClient({ initialLang }: { initialLang: Lang }) {
     ;(async () => {
       try {
         const planetData = await requestPhase('planets')
+        if (!planetData) {
+          setReadingStates(prev => ({
+            ...prev,
+            [context]: { ...prev[context], status: 'idle' }
+          }))
+          return
+        }
         if (cancelled) return
         setReadingStates(prev => ({
           ...prev,
@@ -779,6 +980,7 @@ export default function NatalClient({ initialLang }: { initialLang: Lang }) {
           }
         }))
         const houseData = await requestPhase('houses')
+        if (!houseData) return
         if (cancelled) return
         setReadingStates(prev => ({
           ...prev,
@@ -802,7 +1004,7 @@ export default function NatalClient({ initialLang }: { initialLang: Lang }) {
       cancelled = true
       controller.abort()
     }
-  }, [singleResults.other, lang, submittedLabels.other, submittedGenders.other, copy.reading.error])
+  }, [singleResults.other, lang, submittedLabels.other, submittedGenders.other, copy.reading.error, openLimitModal])
 
   useEffect(() => {
     if (!coupleResult) return
@@ -840,6 +1042,13 @@ export default function NatalClient({ initialLang }: { initialLang: Lang }) {
           })
         })
         const data = await res.json().catch(() => ({}))
+        if (res.status === 429) {
+          if (!cancelled) {
+            openLimitModal(typeof data?.error === 'string' ? data.error : undefined)
+            setRelationshipStatus('idle')
+          }
+          return
+        }
         if (!res.ok) throw new Error(data?.error || copy.reading.error)
         if (cancelled) return
         setRelationshipTopics(Array.isArray(data.topics) ? data.topics : [])
@@ -856,7 +1065,7 @@ export default function NatalClient({ initialLang }: { initialLang: Lang }) {
     return () => {
       cancelled = true
     }
-  }, [coupleResult, couplePayloadMeta, lang, copy.relationship.partnerLabels.first, copy.relationship.partnerLabels.second, copy.reading.error])
+  }, [coupleResult, couplePayloadMeta, lang, copy.relationship.partnerLabels.first, copy.relationship.partnerLabels.second, copy.reading.error, openLimitModal])
 
   async function handleSingleSubmit(target: PersonKey) {
     const form = personForms[target]
@@ -995,34 +1204,48 @@ export default function NatalClient({ initialLang }: { initialLang: Lang }) {
   return (
     <div className="space-y-8">
       <section className="rounded-2xl border border-mok-goldDeep/30 bg-black/40 p-5 shadow-lg space-y-6">
-        <div className="flex flex-col gap-4 lg:flex-row lg:items-center lg:justify-between">
+        <div className="flex flex-col gap-4 lg:flex-row lg:items-start lg:justify-between">
           <div>
             <p className="text-xs uppercase tracking-[0.3em] text-neutral-500">{copy.title}</p>
             <h1 className="gold-gradient text-2xl font-semibold">{copy.title}</h1>
             <p className="mt-2 text-sm text-neutral-300">{copy.intro}</p>
             <p className="mt-3 text-xs text-neutral-400">{activeTab.description}</p>
           </div>
-          <div className="flex flex-col gap-2 sm:flex-row sm:flex-wrap">
-            {MODE_TABS.map(tab => {
-              const selected = mode === tab.id
-              const tabCopy = copy.tabs[tab.id]
-              return (
-                <button
-                  key={tab.id}
-                  type="button"
-                  onClick={() => setMode(tab.id)}
-                  className={`flex w-full sm:w-[260px] items-start gap-2 rounded-2xl border px-3 py-2 text-left transition ${
-                    selected ? 'border-mok-gold bg-mok-gold/10' : 'border-mok-goldDeep/40 hover:border-mok-gold/60'
-                  }`}
-                >
-                  <span className="text-lg text-mok-gold">{tab.icon}</span>
-                  <div>
-                    <p className="text-sm font-semibold text-white">{tabCopy.title}</p>
-                    <p className="text-xs text-neutral-400">{tabCopy.description}</p>
-                  </div>
-                </button>
-              )
-            })}
+          <div className="flex flex-col items-stretch gap-3 sm:items-end">
+            <button
+              type="button"
+              onClick={openRecordsModal}
+              className="inline-flex items-center gap-2 self-end rounded-full border border-mok-gold/40 px-4 py-1.5 text-xs font-semibold text-mok-gold hover:border-mok-gold"
+            >
+              <svg viewBox="0 0 24 24" className="h-4 w-4" fill="none" stroke="currentColor" strokeWidth={1.6} strokeLinecap="round" strokeLinejoin="round">
+                <path d="M5 5h14v14H5z" />
+                <path d="M9 9h6" />
+                <path d="M9 13h6" />
+              </svg>
+              Records
+            </button>
+            <div className="flex flex-col gap-2 sm:flex-row sm:flex-wrap">
+              {MODE_TABS.map(tab => {
+                const selected = mode === tab.id
+                const tabCopy = copy.tabs[tab.id]
+                return (
+                  <button
+                    key={tab.id}
+                    type="button"
+                    onClick={() => setMode(tab.id)}
+                    className={`flex w-full sm:w-[260px] items-start gap-2 rounded-2xl border px-3 py-2 text-left transition ${
+                      selected ? 'border-mok-gold bg-mok-gold/10' : 'border-mok-goldDeep/40 hover:border-mok-gold/60'
+                    }`}
+                  >
+                    <span className="text-lg text-mok-gold">{tab.icon}</span>
+                    <div>
+                      <p className="text-sm font-semibold text-white">{tabCopy.title}</p>
+                      <p className="text-xs text-neutral-400">{tabCopy.description}</p>
+                    </div>
+                  </button>
+                )
+              })}
+            </div>
           </div>
         </div>
 
@@ -1347,6 +1570,10 @@ export default function NatalClient({ initialLang }: { initialLang: Lang }) {
           )}
           {coupleResult && (
             <section className="space-y-6">
+              <div>
+                <h2 className="text-lg font-semibold text-mok-gold">{copy.relationship.title}</h2>
+                <p className="text-xs text-neutral-400">{copy.relationship.subtitle}</p>
+              </div>
               <div className="grid gap-6 lg:grid-cols-2">
                 {PARTNER_KEYS.map(key => {
                   const partnerResult = coupleResult[key]
@@ -1508,6 +1735,10 @@ export default function NatalClient({ initialLang }: { initialLang: Lang }) {
           )}
           {activeResult && (
             <section className="space-y-6">
+              <div>
+                <h2 className="text-lg font-semibold text-mok-gold">{copy.reading.title}</h2>
+                <p className="text-xs text-neutral-400">{copy.reading.subtitle}</p>
+              </div>
               <div className="grid gap-4 md:grid-cols-3">
                 <div className="rounded-2xl border border-mok-goldDeep/40 bg-black/40 p-4">
                   <h2 className="text-sm font-semibold text-mok-gold">{copy.resultTitle}</h2>
@@ -1675,6 +1906,148 @@ export default function NatalClient({ initialLang }: { initialLang: Lang }) {
             </section>
           )}
         </>
+      )}
+
+      {limitModal && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center p-4">
+          <div className="absolute inset-0 bg-black/70" onClick={closeLimitModal} />
+          <div className="relative z-10 mx-4 w-full max-w-md rounded-2xl border border-mok-goldDeep/40 bg-mok-black p-6 text-center shadow-xl">
+            <Image src="/thanks.png" alt="Thanks" width={200} height={200} className="mx-auto mb-3" />
+            <div className="gold-gradient mb-1 text-lg font-semibold">{copy.limit.title}</div>
+            <p className="mb-4 text-sm text-neutral-300">{limitMsg || copy.limit.body}</p>
+            <div className="flex items-center justify-center gap-3">
+              <a href="https://t.me/Mok_tarot" target="_blank" rel="noopener noreferrer" className="rounded-md bg-gold-linear px-4 py-2 text-sm font-semibold text-black">
+                {copy.limit.cta}
+              </a>
+              <button onClick={closeLimitModal} className="rounded-md border border-mok-goldDeep/40 px-3 py-2 text-sm text-neutral-200 hover:border-mok-gold">
+                {copy.limit.close}
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {showRecordModal && (
+        <div className="fixed inset-0 z-50 bg-black/70 backdrop-blur-sm p-4">
+          <div className="mx-auto flex h-full max-w-6xl flex-col rounded-3xl border border-mok-goldDeep/40 bg-[#050302] p-4 shadow-2xl">
+            <div className="flex flex-col gap-2 border-b border-white/5 pb-4 sm:flex-row sm:items-center sm:justify-between">
+              <div>
+                <p className="text-[11px] uppercase tracking-[0.3em] text-neutral-500">Archive</p>
+                <h3 className="text-xl font-semibold text-mok-gold">Saved natal records</h3>
+                <p className="text-xs text-neutral-400">Review the AI guidance and chart info you generated earlier.</p>
+              </div>
+              <div className="flex gap-2">
+                <button
+                  type="button"
+                  onClick={refreshRecords}
+                  className="rounded-full border border-mok-gold/40 px-4 py-1.5 text-xs font-semibold text-mok-gold hover:border-mok-gold disabled:opacity-60"
+                  disabled={recordsLoading}
+                >
+                  {recordsLoading ? 'Refreshing…' : 'Refresh'}
+                </button>
+                <button
+                  type="button"
+                  onClick={closeRecordsModal}
+                  className="rounded-full border border-white/20 px-4 py-1.5 text-xs font-semibold text-neutral-200 hover:border-white/60"
+                >
+                  Close
+                </button>
+              </div>
+            </div>
+            {recordsError && <p className="mt-3 text-sm text-red-400">{recordsError}</p>}
+            <div className="mt-4 grid flex-1 gap-4 lg:grid-cols-[260px,1fr]">
+              <div className="rounded-2xl border border-white/10 bg-black/30 p-3">
+                {recordsLoading && natalRecords.length === 0 ? (
+                  <p className="text-sm text-neutral-400">Loading records…</p>
+                ) : natalRecords.length === 0 ? (
+                  <p className="text-sm text-neutral-400">No records yet. Run a reading to see it here.</p>
+                ) : (
+                  <ul className="space-y-2 max-h-[60vh] overflow-y-auto pr-1">
+                    {natalRecords.map(record => {
+                      const selected = selectedRecordId === record.id
+                      return (
+                        <li key={record.id}>
+                          <button
+                            type="button"
+                            onClick={() => setSelectedRecordId(record.id)}
+                            className={`w-full rounded-2xl border px-3 py-2 text-left transition ${
+                              selected ? 'border-mok-gold bg-mok-gold/10' : 'border-white/10 hover:border-mok-gold/40'
+                            }`}
+                          >
+                            <p className="text-sm font-semibold text-white">{recordContextLabel(record.context)}</p>
+                            <p className="text-xs text-neutral-400">
+                              {recordPhaseLabel(record.context, record.phase)} · {languageLabel(record.language)}
+                            </p>
+                            <p className="text-[11px] text-neutral-500">{formatRecordDate(record.createdAt)}</p>
+                          </button>
+                        </li>
+                      )
+                    })}
+                  </ul>
+                )}
+              </div>
+              <div className="rounded-2xl border border-white/10 bg-black/30 p-4">
+                {selectedRecord ? (
+                  <div className="space-y-4 max-h-[60vh] overflow-y-auto pr-1">
+                    <div className="flex flex-wrap gap-2 text-[11px] uppercase tracking-[0.2em] text-neutral-400">
+                      <span className="rounded-full border border-white/20 px-3 py-1 text-[10px] text-neutral-200">
+                        {recordContextLabel(selectedRecord.context)}
+                      </span>
+                      <span className="rounded-full border border-white/20 px-3 py-1 text-[10px] text-neutral-200">
+                        {recordPhaseLabel(selectedRecord.context, selectedRecord.phase)}
+                      </span>
+                      <span className="rounded-full border border-white/20 px-3 py-1 text-[10px] text-neutral-200">
+                        {languageLabel(selectedRecord.language)}
+                      </span>
+                      <span className="rounded-full border border-white/20 px-3 py-1 text-[10px] text-neutral-200">
+                        {formatRecordDate(selectedRecord.createdAt)}
+                      </span>
+                    </div>
+                    {renderRecordRequestMeta(selectedRecord)}
+                    <div className="space-y-3">
+                      <h4 className="text-xs font-semibold uppercase tracking-[0.3em] text-mok-gold">
+                        {selectedRecordTopicsTitle}
+                      </h4>
+                      {Array.isArray(selectedRecord.response?.topics) && selectedRecord.response.topics.length > 0 ? (
+                        <div className="grid gap-3 md:grid-cols-2">
+                          {selectedRecord.response.topics.map(topic => (
+                            <InsightCard key={`${selectedRecord.id}-${topic.id}`} topic={topic} />
+                          ))}
+                        </div>
+                      ) : (
+                        <p className="text-sm text-neutral-500">No AI topics saved for this record.</p>
+                      )}
+                    </div>
+                    <div>
+                      <h4 className="text-xs font-semibold uppercase tracking-[0.3em] text-mok-gold">{copy.reading.summaryTitle}</h4>
+                      {selectedRecord.response?.summary ? (
+                        <div className="mt-3 rounded-2xl border border-mok-goldDeep/40 bg-gradient-to-r from-black/50 to-black/20 p-4">
+                          <p className="text-sm font-semibold text-white">{selectedRecord.response.summary.title}</p>
+                          <p className="mt-2 whitespace-pre-line text-sm text-neutral-200">{selectedRecord.response.summary.message}</p>
+                          {selectedRecord.response.summary.keywords && selectedRecord.response.summary.keywords.length > 0 && (
+                            <div className="mt-3 flex flex-wrap gap-2 text-[11px] text-mok-gold">
+                              {selectedRecord.response.summary.keywords.map((word, idx) => (
+                                <span key={`${selectedRecord.id}-summary-${idx}`} className="rounded-full border border-mok-gold/50 px-3 py-0.5">
+                                  {word}
+                                </span>
+                              ))}
+                            </div>
+                          )}
+                        </div>
+                      ) : (
+                        <p className="mt-2 text-sm text-neutral-500">This record did not include a summary.</p>
+                      )}
+                    </div>
+                  </div>
+                ) : (
+                  <div className="flex h-full items-center justify-center text-sm text-neutral-500">
+                    Select a record on the left to inspect its full details.
+                  </div>
+                )}
+              </div>
+            </div>
+          </div>
+        </div>
       )}
     </div>
   )
