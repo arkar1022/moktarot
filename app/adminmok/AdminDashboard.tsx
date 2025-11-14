@@ -71,16 +71,37 @@ type NatalRecord = {
   user?: { id: string; email: string | null; name: string; phoneCode?: string | null; phoneNumber?: string | null }
 }
 
-export default function AdminDashboard({ users, readings, guidances, natalRecords }: { users: User[]; readings: Reading[]; guidances: Guidance[]; natalRecords: NatalRecord[] }) {
-  const [tab, setTab] = useState<'users'|'readings'|'guidance'|'natal'|'zodiac'>('users')
+type GoodDeedCategory = 'FAMILY'|'COMMUNITY'|'RELIGION'|'SELF_GROWTH'|'HEALTH'|'FINANCIAL'|'EDUCATION'|'ENVIRONMENT'|'KINDNESS'|'PROFESSIONAL'
+
+type GoodDeed = {
+  id: string
+  userId: string
+  deedDate: string
+  createdAt: string
+  note: string
+  categories: GoodDeedCategory[]
+  aiFeedback: string
+  language: 'en' | 'my'
+  belief: 'BUDDHIST' | 'HINDU' | 'CHRISTIAN' | 'ISLAM' | 'ATHEIST'
+  points: number
+  user?: { id: string; email: string | null; name: string; phoneCode?: string | null; phoneNumber?: string | null }
+}
+
+const BELIEF_OPTIONS: GoodDeed['belief'][] = ['BUDDHIST','HINDU','CHRISTIAN','ISLAM','ATHEIST']
+const GOOD_DEED_CATEGORIES: GoodDeedCategory[] = ['FAMILY','COMMUNITY','RELIGION','SELF_GROWTH','HEALTH','FINANCIAL','EDUCATION','ENVIRONMENT','KINDNESS','PROFESSIONAL']
+
+export default function AdminDashboard({ users, readings, guidances, natalRecords, goodDeeds }: { users: User[]; readings: Reading[]; guidances: Guidance[]; natalRecords: NatalRecord[]; goodDeeds: GoodDeed[] }) {
+  const [tab, setTab] = useState<'users'|'readings'|'guidance'|'gooddeeds'|'natal'|'zodiac'>('users')
   const [openUserId, setOpenUserId] = useState<string | null>(null)
   const [usersState, setUsersState] = useState<User[]>(users)
   const [readingsState, setReadingsState] = useState<Reading[]>(readings)
   const [guidancesState, setGuidancesState] = useState<Guidance[]>(guidances)
   const [natalState, setNatalState] = useState<NatalRecord[]>(natalRecords)
+  const [goodDeedsState] = useState<GoodDeed[]>(goodDeeds)
   const [openReading, setOpenReading] = useState<Reading | null>(null)
   const [openGuidance, setOpenGuidance] = useState<Guidance | null>(null)
   const [openNatalRecord, setOpenNatalRecord] = useState<NatalRecord | null>(null)
+  const [openGoodDeed, setOpenGoodDeed] = useState<GoodDeed | null>(null)
   const [userDetailTab, setUserDetailTab] = useState<'readings'|'guidance'>('readings')
   useEffect(()=>{ setUserDetailTab('readings') }, [openUserId])
   
@@ -143,6 +164,11 @@ export default function AdminDashboard({ users, readings, guidances, natalRecord
   const [nPhaseFilter, setNPhaseFilter] = useState<'all'|'planets'|'houses'|'combined'>('all')
   const [nLangFilter, setNLangFilter] = useState<'all'|'en'|'my'>('all')
   const [nStatusFilter, setNStatusFilter] = useState<'all'|'success'|'pending'|'error'>('all')
+  /* Good deeds */
+  const [gdQuery, setGdQuery] = useState('')
+  const [gdBeliefFilter, setGdBeliefFilter] = useState<'all'|GoodDeed['belief']>('all')
+  const [gdLangFilter, setGdLangFilter] = useState<'all'|'en'|'my'>('all')
+  const [gdCategoryFilter, setGdCategoryFilter] = useState<'all'|GoodDeedCategory>('all')
 
   const filteredReadings = useMemo(() => {
     const q = rQuery.trim().toLowerCase()
@@ -188,6 +214,24 @@ export default function AdminDashboard({ users, readings, guidances, natalRecord
     return record.phase === 'planets' ? 'Planets' : 'Houses'
   }
 
+  const filteredGoodDeeds = useMemo(() => {
+    const q = gdQuery.trim().toLowerCase()
+    const filtered = goodDeedsState.filter(deed => {
+      const userText = `${deed.user?.name || ''} ${deed.user?.email || ''} ${
+        deed.user?.phoneCode && deed.user?.phoneNumber ? `+${deed.user.phoneCode} ${deed.user.phoneNumber}` : ''
+      }`.toLowerCase()
+      const noteText = deed.note.toLowerCase()
+      const feedbackText = deed.aiFeedback.toLowerCase()
+      const okQuery = !q || userText.includes(q) || noteText.includes(q) || feedbackText.includes(q)
+      const okBelief = gdBeliefFilter === 'all' || deed.belief === gdBeliefFilter
+      const okLang = gdLangFilter === 'all' || deed.language === gdLangFilter
+      const okCategory =
+        gdCategoryFilter === 'all' ? true : deed.categories?.some(category => category === gdCategoryFilter)
+      return okQuery && okBelief && okLang && okCategory
+    })
+    return filtered.sort((a, b) => +new Date(b.deedDate) - +new Date(a.deedDate))
+  }, [goodDeedsState, gdQuery, gdBeliefFilter, gdLangFilter, gdCategoryFilter])
+
   async function deleteUser(id: string, name: string) {
     if (!confirm(`Delete user "${name}" and all readings? This cannot be undone.`)) return
     try {
@@ -211,6 +255,7 @@ export default function AdminDashboard({ users, readings, guidances, natalRecord
           <button onClick={() => setTab('users')} className={`w-full text-left px-3 py-2 rounded-md border ${tab==='users'?'border-mok-gold bg-black/40':'border-transparent hover:border-mok-goldDeep/30'}`}>Users</button>
           <button onClick={() => setTab('readings')} className={`w-full text-left px-3 py-2 rounded-md border ${tab==='readings'?'border-mok-gold bg-black/40':'border-transparent hover:border-mok-goldDeep/30'}`}>Readings</button>
           <button onClick={() => setTab('guidance')} className={`w-full text-left px-3 py-2 rounded-md border ${tab==='guidance'?'border-mok-gold bg-black/40':'border-transparent hover:border-mok-goldDeep/30'}`}>Guidance</button>
+          <button onClick={() => setTab('gooddeeds')} className={`w-full text-left px-3 py-2 rounded-md border ${tab==='gooddeeds'?'border-mok-gold bg-black/40':'border-transparent hover:border-mok-goldDeep/30'}`}>Good Deeds</button>
           <button onClick={() => setTab('natal')} className={`w-full text-left px-3 py-2 rounded-md border ${tab==='natal'?'border-mok-gold bg-black/40':'border-transparent hover:border-mok-goldDeep/30'}`}>Natal Chart</button>
           <button onClick={() => setTab('zodiac')} className={`w-full text-left px-3 py-2 rounded-md border ${tab==='zodiac'?'border-mok-gold bg-black/40':'border-transparent hover:border-mok-goldDeep/30'}`}>Zodiac</button>
         </nav>
@@ -405,6 +450,55 @@ export default function AdminDashboard({ users, readings, guidances, natalRecord
                 </tbody>
               </table>
             </div>
+            {openGoodDeed && (
+              <div className="fixed inset-0 z-50 flex items-center justify-center p-4">
+                <div className="absolute inset-0 bg-black/70" onClick={() => setOpenGoodDeed(null)} />
+                <div className="relative z-10 w-full max-w-3xl rounded-2xl border border-mok-goldDeep/40 bg-mok-black p-5 shadow-xl max-h-[90vh] overflow-y-auto thin-scroll">
+                  <div className="flex items-center justify-between mb-4">
+                    <div>
+                      <h3 className="text-lg font-semibold text-mok-gold">Good deed detail</h3>
+                      <p className="text-xs text-neutral-400">
+                        {new Date(openGoodDeed.deedDate).toLocaleString()} · Points:{' '}
+                        <span className="text-mok-gold font-semibold">{openGoodDeed.points}</span>
+                      </p>
+                    </div>
+                    <button
+                      onClick={() => setOpenGoodDeed(null)}
+                      className="px-3 py-1 rounded-md border border-mok-goldDeep/40 hover:border-mok-gold"
+                    >
+                      Close
+                    </button>
+                  </div>
+                  <div className="space-y-3 text-sm text-neutral-200">
+                    <div>
+                      <div className="text-neutral-400 text-xs uppercase">User</div>
+                      <div>{openGoodDeed.user?.name || '—'}</div>
+                      {openGoodDeed.user?.email && <div className="text-neutral-400 text-xs">{openGoodDeed.user.email}</div>}
+                    </div>
+                    <div>
+                      <div className="text-neutral-400 text-xs uppercase">Categories</div>
+                      <div className="flex flex-wrap gap-2 text-xs">
+                        {openGoodDeed.categories.map(cat => (
+                          <span key={cat} className="rounded-full border border-mok-goldDeep/40 px-3 py-0.5">{cat}</span>
+                        ))}
+                      </div>
+                    </div>
+                    <div>
+                      <div className="text-neutral-400 text-xs uppercase">Belief / Language</div>
+                      <div>{openGoodDeed.belief} · {openGoodDeed.language.toUpperCase()}</div>
+                    </div>
+                    <div>
+                      <div className="text-neutral-400 text-xs uppercase">Good deed</div>
+                      <p className="whitespace-pre-line text-neutral-100">{openGoodDeed.note}</p>
+                    </div>
+                    <div>
+                      <div className="text-neutral-400 text-xs uppercase">AI feedback</div>
+                      <p className="whitespace-pre-line text-neutral-100">{openGoodDeed.aiFeedback}</p>
+                    </div>
+                  </div>
+                </div>
+              </div>
+            )}
           </section>
         )}
 
@@ -431,6 +525,98 @@ export default function AdminDashboard({ users, readings, guidances, natalRecord
                       <td className="p-2 max-w-[520px]"><div className="line-clamp-3 text-neutral-200">{g.question}</div></td>
                     </tr>
                   ))}
+                </tbody>
+              </table>
+            </div>
+          </section>
+        )}
+
+        {tab === 'gooddeeds' && (
+          <section className="space-y-3">
+            <div className="flex flex-wrap items-center gap-2">
+              <input
+                value={gdQuery}
+                onChange={e => setGdQuery(e.target.value)}
+                placeholder="Search note, feedback or user"
+                className="h-9 w-72 max-w-full rounded-md bg-black/40 border border-mok-goldDeep/40 px-3 outline-none"
+              />
+              <select value={gdBeliefFilter} onChange={e => setGdBeliefFilter(e.target.value as any)} className="h-9 rounded-md bg-black/40 border border-mok-goldDeep/40 px-2">
+                <option value="all">All beliefs</option>
+                {BELIEF_OPTIONS.map(belief => (
+                  <option key={belief} value={belief}>{belief}</option>
+                ))}
+              </select>
+              <select value={gdCategoryFilter} onChange={e => setGdCategoryFilter(e.target.value as any)} className="h-9 rounded-md bg-black/40 border border-mok-goldDeep/40 px-2">
+                <option value="all">All categories</option>
+                {GOOD_DEED_CATEGORIES.map(category => (
+                  <option key={category} value={category}>{category}</option>
+                ))}
+              </select>
+              <select value={gdLangFilter} onChange={e => setGdLangFilter(e.target.value as any)} className="h-9 rounded-md bg-black/40 border border-mok-goldDeep/40 px-2">
+                <option value="all">All languages</option>
+                <option value="my">Myanmar</option>
+                <option value="en">English</option>
+              </select>
+            </div>
+            <div className="text-xs text-neutral-400">
+              Total entries: <span className="text-mok-gold">{goodDeedsState.length}</span>
+              {filteredGoodDeeds.length !== goodDeedsState.length && (
+                <> · Showing: <span className="text-mok-gold">{filteredGoodDeeds.length}</span></>
+              )}
+            </div>
+            <div className="overflow-x-auto border border-mok-goldDeep/30 rounded-lg">
+              <table className="w-full text-sm">
+                <thead className="bg-mok-smoke/60 text-xs uppercase tracking-widest">
+                  <tr>
+                    <th className="p-2 text-left w-12">No.</th>
+                    <th className="p-2 text-left min-w-[140px]">Deed date</th>
+                    <th className="p-2 text-left min-w-[160px]">User</th>
+                    <th className="p-2 text-left min-w-[200px]">Good deed</th>
+                    <th className="p-2 text-left min-w-[140px]">Categories</th>
+                    <th className="p-2 text-left">Belief</th>
+                    <th className="p-2 text-left">Language</th>
+                    <th className="p-2 text-center w-20">Points</th>
+                    <th className="p-2 text-left w-28">Actions</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {filteredGoodDeeds.map((deed, idx) => {
+                    const user = deed.user
+                    return (
+                      <tr key={deed.id} className="border-t border-mok-goldDeep/20 align-top">
+                        <td className="p-2 text-xs text-neutral-400">{idx + 1}</td>
+                        <td className="p-2 text-sm text-neutral-300">
+                          <div>{new Date(deed.deedDate).toLocaleDateString()}</div>
+                          <div className="text-xs text-neutral-500">{new Date(deed.deedDate).toLocaleTimeString()}</div>
+                        </td>
+                        <td className="p-2 text-sm text-neutral-200">
+                          <div>{user?.name || '—'}</div>
+                          <div className="text-xs text-neutral-400">{user?.email || '—'}</div>
+                          {user?.phoneCode && user.phoneNumber && (
+                            <div className="text-xs text-neutral-400">+{user.phoneCode} {user.phoneNumber}</div>
+                          )}
+                        </td>
+                        <td className="p-2 whitespace-pre-line text-neutral-100">{deed.note}</td>
+                        <td className="p-2 text-xs text-neutral-300">{deed.categories.join(', ') || '—'}</td>
+                        <td className="p-2 text-xs text-neutral-300">{deed.belief}</td>
+                        <td className="p-2 text-xs text-neutral-300 uppercase">{deed.language}</td>
+                        <td className="p-2 text-center font-semibold text-mok-gold">{deed.points}</td>
+                        <td className="p-2">
+                          <button
+                            onClick={() => setOpenGoodDeed(deed)}
+                            className="px-3 py-1 rounded-md border border-mok-goldDeep/40 hover:border-mok-gold text-xs text-neutral-100"
+                          >
+                            View
+                          </button>
+                        </td>
+                      </tr>
+                    )
+                  })}
+                  {filteredGoodDeeds.length === 0 && (
+                    <tr>
+                      <td colSpan={9} className="p-4 text-center text-sm text-neutral-400">No records found.</td>
+                    </tr>
+                  )}
                 </tbody>
               </table>
             </div>

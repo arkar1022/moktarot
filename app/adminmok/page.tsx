@@ -11,7 +11,7 @@ export default async function AdminPage() {
   const payload = token ? verifyToken(token) : null
   if (!payload || payload.role !== 'ADMIN') redirect('/')
 
-  const [users, readings, guidances, natalRecords] = await Promise.all([
+  const [users, readings, guidances, natalRecords, goodDeeds] = await Promise.all([
     prisma.user.findMany({ orderBy: { createdAt: 'desc' } }),
     prisma.reading.findMany({ orderBy: { createdAt: 'desc' }, include: { user: true }, take: 500 }),
     prisma.guidance.findMany({ orderBy: { createdAt: 'desc' }, include: { user: true }, take: 500 }),
@@ -19,6 +19,10 @@ export default async function AdminPage() {
       orderBy: { createdAt: 'desc' },
       include: { user: true },
       take: 500
+    }),
+    prisma.goodDeed.findMany({
+      orderBy: { deedDate: 'desc' },
+      include: { user: true }
     })
   ])
 
@@ -55,6 +59,27 @@ export default async function AdminPage() {
                 name: record.user.name,
                 phoneCode: (record.user as any).phoneCode || null,
                 phoneNumber: (record.user as any).phoneNumber || null
+            }
+            : undefined
+        }))}
+        goodDeeds={goodDeeds.map(deed => ({
+          id: deed.id,
+          userId: deed.userId,
+          deedDate: deed.deedDate.toISOString(),
+          note: deed.note,
+          categories: deed.categories,
+          aiFeedback: deed.aiFeedback,
+          language: (deed.language === 'en' ? 'en' : 'my') as 'en' | 'my',
+          belief: deed.belief as 'BUDDHIST' | 'HINDU' | 'CHRISTIAN' | 'ISLAM' | 'ATHEIST',
+          points: deed.points,
+          createdAt: deed.createdAt.toISOString(),
+          user: deed.user
+            ? {
+                id: deed.user.id,
+                email: deed.user.email || '',
+                name: deed.user.name,
+                phoneCode: (deed.user as any).phoneCode || null,
+                phoneNumber: (deed.user as any).phoneNumber || null
               }
             : undefined
         }))}
