@@ -2,7 +2,10 @@
 const nextConfig = {
   experimental: {
     outputFileTracingIncludes: {
-      '/api/natal': ['./public/ephe/**/*']
+      '/api/natal': [
+        './public/ephe/**/*',
+        './node_modules/sweph/build/Release/sweph.node'
+      ]
     }
   }
 };
