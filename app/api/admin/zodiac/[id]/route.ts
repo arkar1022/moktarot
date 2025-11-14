@@ -7,7 +7,7 @@ export async function PATCH(req: Request, { params }: { params: { id: string } }
   if (!auth || auth.role !== 'ADMIN') return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
   const b = await req.json().catch(()=>({})) as any
   const data: any = {}
-  for (const k of ['general','relationship','workMoney','health','education','warnings','startDate','endDate','cards','fakeReactions']) {
+  for (const k of ['general','relationship','workMoney','health','education','warnings','generalEn','relationshipEn','workMoneyEn','healthEn','educationEn','warningsEn','startDate','endDate','cards','fakeReactions']) {
     if (k in b) data[k] = (k==='startDate'||k==='endDate') ? new Date(b[k]) : b[k]
   }
   try {

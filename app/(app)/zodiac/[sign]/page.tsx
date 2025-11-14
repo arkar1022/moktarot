@@ -111,6 +111,14 @@ export default async function ZodiacSignPage({ params }: { params: { sign: strin
   const chosen: TarotCard[] = maybeCards.filter((x): x is TarotCard => !!x)
   const start = new Date(reading.startDate)
   const end = new Date(reading.endDate)
+  const localized = {
+    general: lang === 'en' ? (reading.generalEn || reading.general) : reading.general,
+    relationship: lang === 'en' ? (reading.relationshipEn || reading.relationship) : reading.relationship,
+    workMoney: lang === 'en' ? (reading.workMoneyEn || reading.workMoney) : reading.workMoney,
+    health: lang === 'en' ? (reading.healthEn || reading.health) : reading.health,
+    education: lang === 'en' ? (reading.educationEn || reading.education) : reading.education,
+    warnings: lang === 'en' ? (reading.warningsEn || reading.warnings) : reading.warnings
+  }
 
   // Record a view for this user against this reading
   try {
@@ -163,12 +171,12 @@ export default async function ZodiacSignPage({ params }: { params: { sign: strin
 
       {/* Reading sections */}
       <div className="grid md:grid-cols-2 gap-4">
-        <SectionCard title={labels.general} text={reading.general} />
-        <SectionCard title={labels.relationship} text={reading.relationship} />
-        <SectionCard title={labels.work} text={reading.workMoney} />
-        <SectionCard title={labels.health} text={reading.health} />
-        <SectionCard title={labels.education} text={reading.education} />
-        <SectionCard title={labels.warnings} text={reading.warnings} />
+        <SectionCard title={labels.general} text={localized.general} />
+        <SectionCard title={labels.relationship} text={localized.relationship} />
+        <SectionCard title={labels.work} text={localized.workMoney} />
+        <SectionCard title={labels.health} text={localized.health} />
+        <SectionCard title={labels.education} text={localized.education} />
+        <SectionCard title={labels.warnings} text={localized.warnings} />
       </div>
     </div>
   )

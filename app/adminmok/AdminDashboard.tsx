@@ -684,6 +684,7 @@ export default function AdminDashboard({ users, readings, guidances, natalRecord
             </div>
           </div>
         )}
+
       </main>
     </div>
   )
@@ -841,11 +842,29 @@ function ZodiacAdmin() {
   const [deck, setDeck] = useState(TAROT_DECK)
   const [selected, setSelected] = useState<number[]>([])
   const [loading, setLoading] = useState(false)
-  const [sections, setSections] = useState<any>({ general:'', relationship:'', workMoney:'', health:'', education:'', warnings:'' })
+  const [sections, setSections] = useState<{ my: SectionState; en: SectionState }>({
+    my: { ...EMPTY_SECTION_STATE },
+    en: { ...EMPTY_SECTION_STATE }
+  })
+  const [sectionLang, setSectionLang] = useState<'my'|'en'>('my')
   const [list, setList] = useState<any[]>([])
   const [statsFor, setStatsFor] = useState<any | null>(null)
   const [stats, setStats] = useState<any[] | null>(null)
   const [showFaces, setShowFaces] = useState(false)
+  const [bulkOpen, setBulkOpen] = useState(false)
+  const [bulkStart, setBulkStart] = useState('')
+  const [bulkEnd, setBulkEnd] = useState('')
+  const [bulkSigns, setBulkSigns] = useState<string[]>([...ZODIAC_SIGNS])
+  const [bulkLoading, setBulkLoading] = useState(false)
+  const [bulkMessage, setBulkMessage] = useState<string | null>(null)
+  const bulkAllSelected = bulkSigns.length === ZODIAC_SIGNS.length
+  const toggleBulkSign = (value: string) => {
+    setBulkSigns(prev => prev.includes(value) ? prev.filter(s => s !== value) : [...prev, value])
+  }
+  const closeBulkModal = () => {
+    setBulkOpen(false)
+    setBulkMessage(null)
+  }
 
   useEffect(() => { fetchList() }, [])
 
@@ -865,6 +884,12 @@ function ZodiacAdmin() {
     setShowFaces(false)
   }
   const chosen = selected.map(i=>deck[i]).filter(Boolean)
+  const updateSectionField = (lang: 'my'|'en', key: SectionKey, value: string) => {
+    setSections(prev => ({
+      ...prev,
+      [lang]: { ...prev[lang], [key]: value }
+    }))
+  }
 
   async function generate() {
     if (!sign || !start || !end || chosen.length !== 3) return
@@ -874,8 +899,22 @@ function ZodiacAdmin() {
     const data = await res.json().catch(()=>({}))
     setLoading(false)
     if (res.ok) {
-      setSections(data.sections || {})
-      if (!data.sections && data.raw) setSections({ general: data.raw, relationship:'', workMoney:'', health:'', education:'', warnings:'' })
+      if (data.sections && data.sections.my && data.sections.en) {
+        setSections({
+          my: { ...EMPTY_SECTION_STATE, ...data.sections.my },
+          en: { ...EMPTY_SECTION_STATE, ...data.sections.en }
+        })
+      } else if (data.sections) {
+        setSections({
+          my: { ...EMPTY_SECTION_STATE, ...(data.sections.my || data.sections || {}) },
+          en: { ...EMPTY_SECTION_STATE, ...(data.sections.en || {}) }
+        })
+      } else if (data.raw) {
+        setSections({
+          my: { ...EMPTY_SECTION_STATE, general: data.raw },
+          en: { ...EMPTY_SECTION_STATE }
+        })
+      }
       setShowFaces(true)
     } else {
       alert(data.error || 'Failed to generate')
@@ -883,8 +922,25 @@ function ZodiacAdmin() {
   }
 
   async function save() {
-    const common = { sign, startDate: start, endDate: end, cards: chosen.map(c=>c.name), ...sections }
-    const body = fakeReactions === '' ? common : { ...common, fakeReactions: Number(fakeReactions) }
+    const payload = {
+      sign,
+      startDate: start,
+      endDate: end,
+      cards: chosen.map(c=>c.name),
+      general: sections.my.general,
+      relationship: sections.my.relationship,
+      workMoney: sections.my.workMoney,
+      health: sections.my.health,
+      education: sections.my.education,
+      warnings: sections.my.warnings,
+      generalEn: sections.en.general,
+      relationshipEn: sections.en.relationship,
+      workMoneyEn: sections.en.workMoney,
+      healthEn: sections.en.health,
+      educationEn: sections.en.education,
+      warningsEn: sections.en.warnings
+    }
+    const body = fakeReactions === '' ? payload : { ...payload, fakeReactions: Number(fakeReactions) }
     if (editingId) {
       const res = await fetch(`/api/admin/zodiac/${encodeURIComponent(editingId)}`, { method: 'PATCH', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(body) })
       const data = await res.json().catch(()=>({}))
@@ -919,7 +975,25 @@ function ZodiacAdmin() {
     setSign(row.sign)
     setStart(row.startDate?.slice(0,10) || '')
     setEnd(row.endDate?.slice(0,10) || '')
-    setSections({ general: row.general||'', relationship: row.relationship||'', workMoney: row.workMoney||'', health: row.health||'', education: row.education||'', warnings: row.warnings||'' })
+    setSections({
+      my: {
+        general: row.general || '',
+        relationship: row.relationship || '',
+        workMoney: row.workMoney || '',
+        health: row.health || '',
+        education: row.education || '',
+        warnings: row.warnings || ''
+      },
+      en: {
+        general: row.generalEn || '',
+        relationship: row.relationshipEn || '',
+        workMoney: row.workMoneyEn || '',
+        health: row.healthEn || '',
+        education: row.educationEn || '',
+        warnings: row.warningsEn || ''
+      }
+    })
+    setSectionLang('my')
     setFakeReactions(typeof row.fakeReactions === 'number' ? row.fakeReactions : '')
     setEditingId(row.id || null)
     const names: string[] = Array.isArray(row.cards) ? row.cards.map((x:any)=> typeof x==='string' ? x : x?.name) : []
@@ -932,12 +1006,67 @@ function ZodiacAdmin() {
   }
 
   function resetForm() {
-    setSign('ARIES'); setStart(''); setEnd(''); setSections({ general:'', relationship:'', workMoney:'', health:'', education:'', warnings:'' }); setSelected([]); setShowFaces(false); setFakeReactions(''); setEditingId(null)
+    setSign('ARIES')
+    setStart('')
+    setEnd('')
+    setSections({ my: { ...EMPTY_SECTION_STATE }, en: { ...EMPTY_SECTION_STATE } })
+    setSectionLang('my')
+    setSelected([])
+    setShowFaces(false)
+    setFakeReactions('')
+    setEditingId(null)
+  }
+
+  async function handleBulkGenerate() {
+    if (!bulkStart || !bulkEnd) {
+      setBulkMessage('Please choose a start and end date.')
+      return
+    }
+    if (!bulkSigns.length) {
+      setBulkMessage('Select at least one zodiac sign.')
+      return
+    }
+    setBulkLoading(true)
+    setBulkMessage(null)
+    try {
+      const res = await fetch('/api/admin/zodiac/bulk', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ signs: bulkSigns, startDate: bulkStart, endDate: bulkEnd })
+      })
+      const data = await res.json().catch(()=>({}))
+      if (res.ok) {
+        const newReadings = data.readings || []
+        if (newReadings.length) {
+          setList(prev => [...newReadings, ...prev])
+        }
+        const fails = data.failures?.length ? ` (failed: ${data.failures.length})` : ''
+        setBulkMessage(`Generated ${newReadings.length} readings${fails}.`)
+      } else {
+        setBulkMessage(data.error || 'Bulk generation failed.')
+      }
+    } catch {
+      setBulkMessage('Bulk generation failed.')
+    } finally {
+      setBulkLoading(false)
+    }
   }
 
   return (
     <div className="space-y-6">
-      <div className="gold-gradient text-lg font-semibold">Zodiac</div>
+      <div className="flex flex-wrap items-center justify-between gap-3">
+        <div className="gold-gradient text-lg font-semibold">Zodiac</div>
+        <button
+          type="button"
+          onClick={() => setBulkOpen(true)}
+          className="inline-flex items-center gap-2 rounded-full border border-mok-gold/50 px-4 py-1.5 text-xs font-semibold text-mok-gold hover:border-mok-gold"
+        >
+          <svg viewBox="0 0 24 24" className="h-4 w-4" fill="none" stroke="currentColor" strokeWidth="1.6" strokeLinecap="round" strokeLinejoin="round">
+            <path d="M12 5v14m-7-7h14"/>
+          </svg>
+          Bulk auto-generate
+        </button>
+      </div>
       <div className="grid md:grid-cols-[1.1fr_1fr] gap-4 items-start">
         <div className="p-3 rounded-xl border border-mok-goldDeep/30 bg-black/30">
           <div className="grid sm:grid-cols-2 gap-3">
@@ -1045,13 +1174,37 @@ function ZodiacAdmin() {
             </div>
           )}
 
-          <div className="mt-4 grid md:grid-cols-2 gap-3">
-            {(['general','relationship','workMoney','health','education','warnings'] as const).map((k) => (
-              <label key={k} className="text-sm">
-                <div className="text-neutral-400 mb-1">{k}</div>
-                <textarea rows={6} value={sections[k]} onChange={e=>setSections((s:any)=>({ ...s, [k]: e.target.value }))} className="w-full rounded-md bg-black/40 border border-mok-goldDeep/40 px-3 py-2" />
-              </label>
-            ))}
+          <div className="mt-4">
+            <div className="mb-3 flex items-center gap-2 text-xs">
+              <span className="text-neutral-400">Editing language:</span>
+              <button
+                type="button"
+                onClick={() => setSectionLang('my')}
+                className={`px-3 py-1 rounded-full border ${sectionLang === 'my' ? 'border-mok-gold bg-black/40 text-mok-gold' : 'border-transparent text-neutral-300 hover:border-mok-goldDeep/40'}`}
+              >
+                မြန်မာ
+              </button>
+              <button
+                type="button"
+                onClick={() => setSectionLang('en')}
+                className={`px-3 py-1 rounded-full border ${sectionLang === 'en' ? 'border-mok-gold bg-black/40 text-mok-gold' : 'border-transparent text-neutral-300 hover:border-mok-goldDeep/40'}`}
+              >
+                English
+              </button>
+            </div>
+            <div className="grid md:grid-cols-2 gap-3">
+              {SECTION_KEYS.map((key) => (
+                <label key={key} className="text-sm">
+                  <div className="text-neutral-400 mb-1">{SECTION_LABELS[key]}</div>
+                  <textarea
+                    rows={6}
+                    value={sections[sectionLang][key]}
+                    onChange={e => updateSectionField(sectionLang, key, e.target.value)}
+                    className="w-full rounded-md bg-black/40 border border-mok-goldDeep/40 px-3 py-2"
+                  />
+                </label>
+              ))}
+            </div>
           </div>
           <div className="mt-3 grid sm:grid-cols-2 gap-3 max-w-lg">
             <label className="text-sm">
@@ -1084,6 +1237,89 @@ function ZodiacAdmin() {
           </div>
         </div>
       </div>
+      {bulkOpen && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center p-4">
+          <div className="absolute inset-0 bg-black/70" onClick={closeBulkModal} />
+          <div className="relative z-10 w-full max-w-3xl mx-4 rounded-2xl border border-mok-goldDeep/40 bg-mok-black p-5 shadow-xl max-h-[90vh] overflow-y-auto thin-scroll space-y-4">
+            <div className="flex items-center justify-between">
+              <div>
+                <div className="gold-gradient text-lg font-semibold">Bulk auto-generate</div>
+                <p className="text-xs text-neutral-400 mt-0.5">Select signs and a date range. The system will generate Burmese + English readings with random tarot cards.</p>
+              </div>
+              <button onClick={closeBulkModal} className="px-3 py-1 rounded-md border border-mok-goldDeep/40 hover:border-mok-gold text-sm">Close</button>
+            </div>
+
+            <div className="grid sm:grid-cols-2 gap-3">
+              <label className="text-sm">
+                <div className="text-neutral-400 mb-1">Start date</div>
+                <input
+                  type="date"
+                  value={bulkStart}
+                  onChange={e=>setBulkStart(e.target.value)}
+                  className="h-10 w-full rounded-md bg-black/40 border border-mok-goldDeep/40 px-3"
+                />
+              </label>
+              <label className="text-sm">
+                <div className="text-neutral-400 mb-1">End date</div>
+                <input
+                  type="date"
+                  value={bulkEnd}
+                  onChange={e=>setBulkEnd(e.target.value)}
+                  className="h-10 w-full rounded-md bg-black/40 border border-mok-goldDeep/40 px-3"
+                />
+              </label>
+            </div>
+
+            <div>
+              <div className="flex items-center justify-between mb-2 text-sm text-neutral-400">
+                <span>Select zodiac signs</span>
+                <button
+                  type="button"
+                  onClick={() => setBulkSigns(bulkAllSelected ? [] : [...ZODIAC_SIGNS])}
+                  className="text-mok-gold hover:underline"
+                >
+                  {bulkAllSelected ? 'Clear all' : 'Select all'}
+                </button>
+              </div>
+              <div className="grid grid-cols-2 sm:grid-cols-3 gap-2 text-sm">
+                {ZODIAC_SIGNS.map(sign => (
+                  <label
+                    key={sign}
+                    className={`flex items-center gap-2 rounded-lg border px-3 py-2 ${bulkSigns.includes(sign) ? 'border-mok-gold bg-black/40' : 'border-mok-goldDeep/30 hover:border-mok-gold/50'}`}
+                  >
+                    <input
+                      type="checkbox"
+                      className="rounded border-mok-goldDeep/40 text-mok-gold focus:ring-mok-gold"
+                      checked={bulkSigns.includes(sign)}
+                      onChange={() => toggleBulkSign(sign)}
+                    />
+                    <span className="font-semibold">{sign}</span>
+                  </label>
+                ))}
+              </div>
+            </div>
+
+            {bulkMessage && (
+              <div className="text-sm text-neutral-300 bg-black/30 border border-mok-goldDeep/30 rounded-lg p-3">
+                {bulkMessage}
+              </div>
+            )}
+
+            <div className="flex items-center gap-2">
+              <button
+                onClick={handleBulkGenerate}
+                disabled={bulkLoading}
+                className="px-3 py-2 rounded-md bg-gold-linear text-black font-semibold disabled:opacity-60"
+              >
+                {bulkLoading ? 'Generating…' : 'Generate readings'}
+              </button>
+              <button onClick={closeBulkModal} className="px-3 py-2 rounded-md border border-mok-goldDeep/40 hover:border-mok-gold text-sm">
+                Cancel
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
       {statsFor && (
         <ViewsModal reading={statsFor} stats={stats} onClose={()=>{ setStatsFor(null); setStats(null) }} />
       )}
@@ -1180,4 +1416,25 @@ function formatOffsetMinutes(value?: number | null) {
   const hours = Math.floor(abs / 60)
   const mins = abs % 60
   return `UTC${sign}${hours.toString().padStart(2, '0')}:${mins.toString().padStart(2, '0')}`
+}
+
+const ZODIAC_SIGNS = ['ARIES','TAURUS','GEMINI','CANCER','LEO','VIRGO','LIBRA','SCORPIO','SAGITTARIUS','CAPRICORN','AQUARIUS','PISCES'] as const
+const SECTION_KEYS = ['general','relationship','workMoney','health','education','warnings'] as const
+type SectionKey = typeof SECTION_KEYS[number]
+type SectionState = Record<SectionKey, string>
+const EMPTY_SECTION_STATE: SectionState = {
+  general: '',
+  relationship: '',
+  workMoney: '',
+  health: '',
+  education: '',
+  warnings: ''
+}
+const SECTION_LABELS: Record<SectionKey, string> = {
+  general: 'General overview',
+  relationship: 'Relationships',
+  workMoney: 'Work & Money',
+  health: 'Health & Wellbeing',
+  education: 'Education & Growth',
+  warnings: 'Warnings & Action steps'
 }

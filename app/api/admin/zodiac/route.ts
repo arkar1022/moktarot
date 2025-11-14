@@ -13,7 +13,24 @@ export async function POST(req: Request) {
   const auth = getAuth(req)
   if (!auth || auth.role !== 'ADMIN') return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
   const b = await req.json().catch(()=>({})) as any
-  const { sign, startDate, endDate, cards, general, relationship, workMoney, health, education, warnings } = b
+  const {
+    sign,
+    startDate,
+    endDate,
+    cards,
+    general,
+    relationship,
+    workMoney,
+    health,
+    education,
+    warnings,
+    generalEn,
+    relationshipEn,
+    workMoneyEn,
+    healthEn,
+    educationEn,
+    warningsEn
+  } = b
   if (!sign || !startDate || !endDate || !cards || !Array.isArray(cards)) {
     return NextResponse.json({ error: 'Missing fields' }, { status: 400 })
   }
@@ -33,6 +50,12 @@ export async function POST(req: Request) {
         health: String(health||''),
         education: String(education||''),
         warnings: String(warnings||''),
+        generalEn: String(generalEn||''),
+        relationshipEn: String(relationshipEn||''),
+        workMoneyEn: String(workMoneyEn||''),
+        healthEn: String(healthEn||''),
+        educationEn: String(educationEn||''),
+        warningsEn: String(warningsEn||''),
       }
     })
     return NextResponse.json({ reading: row })

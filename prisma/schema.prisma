@@ -107,6 +107,12 @@ model ZodiacReading {
   health       String
   education    String
   warnings     String
+  generalEn      String @default("")
+  relationshipEn String @default("")
+  workMoneyEn    String @default("")
+  healthEn       String @default("")
+  educationEn    String @default("")
+  warningsEn     String @default("")
   createdAt  DateTime  @default(now())
   updatedAt  DateTime  @updatedAt
 
