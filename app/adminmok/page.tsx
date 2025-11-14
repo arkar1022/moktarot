@@ -11,10 +11,15 @@ export default async function AdminPage() {
   const payload = token ? verifyToken(token) : null
   if (!payload || payload.role !== 'ADMIN') redirect('/')
 
-  const [users, readings, guidances] = await Promise.all([
+  const [users, readings, guidances, natalRecords] = await Promise.all([
     prisma.user.findMany({ orderBy: { createdAt: 'desc' } }),
     prisma.reading.findMany({ orderBy: { createdAt: 'desc' }, include: { user: true }, take: 500 }),
-    prisma.guidance.findMany({ orderBy: { createdAt: 'desc' }, include: { user: true }, take: 500 })
+    prisma.guidance.findMany({ orderBy: { createdAt: 'desc' }, include: { user: true }, take: 500 }),
+    prisma.natalReadingRecord.findMany({
+      orderBy: { createdAt: 'desc' },
+      include: { user: true },
+      take: 500
+    })
   ])
 
   return (
@@ -31,6 +36,25 @@ export default async function AdminPage() {
           ...g,
           createdAt: g.createdAt.toISOString(),
           user: g.user ? { id: g.user.id, email: g.user.email || '', name: g.user.name, phoneCode: (g.user as any).phoneCode || null, phoneNumber: (g.user as any).phoneNumber || null } : undefined
+        }))}
+        natalRecords={natalRecords.map(record => ({
+          id: record.id,
+          userId: record.userId,
+          context: record.context as 'self' | 'other' | 'couple',
+          phase: (record.phase as 'planets' | 'houses' | null) ?? null,
+          language: record.language as 'en' | 'my',
+          request: record.request as any,
+          response: record.response as any,
+          createdAt: record.createdAt.toISOString(),
+          user: record.user
+            ? {
+                id: record.user.id,
+                email: record.user.email || '',
+                name: record.user.name,
+                phoneCode: (record.user as any).phoneCode || null,
+                phoneNumber: (record.user as any).phoneNumber || null
+              }
+            : undefined
         }))}
       />
     </div>

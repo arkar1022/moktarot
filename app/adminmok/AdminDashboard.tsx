@@ -40,14 +40,45 @@ type Guidance = {
   user?: { id: string; email: string | null; name: string; phoneCode?: string | null; phoneNumber?: string | null }
 }
 
-export default function AdminDashboard({ users, readings, guidances }: { users: User[]; readings: Reading[]; guidances: Guidance[] }) {
-  const [tab, setTab] = useState<'users'|'readings'|'guidance'|'zodiac'>('users')
+type NatalTopic = {
+  id: string
+  title: string
+  focus: string
+  message: string
+  keywords?: string[]
+}
+
+type NatalSummary = {
+  title: string
+  message: string
+  keywords?: string[]
+}
+
+type NatalRecord = {
+  id: string
+  userId: string | null
+  context: 'self' | 'other' | 'couple'
+  phase: 'planets' | 'houses' | null
+  language: 'en' | 'my'
+  createdAt: string
+  request: any
+  response: {
+    topics?: NatalTopic[]
+    summary?: NatalSummary | null
+  } | null
+  user?: { id: string; email: string | null; name: string; phoneCode?: string | null; phoneNumber?: string | null }
+}
+
+export default function AdminDashboard({ users, readings, guidances, natalRecords }: { users: User[]; readings: Reading[]; guidances: Guidance[]; natalRecords: NatalRecord[] }) {
+  const [tab, setTab] = useState<'users'|'readings'|'guidance'|'natal'|'zodiac'>('users')
   const [openUserId, setOpenUserId] = useState<string | null>(null)
   const [usersState, setUsersState] = useState<User[]>(users)
   const [readingsState, setReadingsState] = useState<Reading[]>(readings)
   const [guidancesState, setGuidancesState] = useState<Guidance[]>(guidances)
+  const [natalState, setNatalState] = useState<NatalRecord[]>(natalRecords)
   const [openReading, setOpenReading] = useState<Reading | null>(null)
   const [openGuidance, setOpenGuidance] = useState<Guidance | null>(null)
+  const [openNatalRecord, setOpenNatalRecord] = useState<NatalRecord | null>(null)
   const [userDetailTab, setUserDetailTab] = useState<'readings'|'guidance'>('readings')
   useEffect(()=>{ setUserDetailTab('readings') }, [openUserId])
   
@@ -63,8 +94,13 @@ export default function AdminDashboard({ users, readings, guidances }: { users: 
       const cur = map[g.userId]
       if (!cur || new Date(g.createdAt) > new Date(cur)) map[g.userId] = g.createdAt
     }
+    for (const n of natalState) {
+      if (!n.userId) continue
+      const cur = map[n.userId]
+      if (!cur || new Date(n.createdAt) > new Date(cur)) map[n.userId as string] = n.createdAt
+    }
     return map
-  }, [readingsState, guidancesState])
+  }, [readingsState, guidancesState, natalState])
 
   /* USERS state */
   const [uQuery, setUQuery] = useState('')
@@ -99,6 +135,11 @@ export default function AdminDashboard({ users, readings, guidances }: { users: 
   const [rQuery, setRQuery] = useState('')
   const [rSort, setRSort] = useState<'recent'|'oldest'|'longest'|'shortest'>('recent')
   const [rCats, setRCats] = useState<string[]>([])
+  /* Natal records */
+  const [nQuery, setNQuery] = useState('')
+  const [nContextFilter, setNContextFilter] = useState<'all'|'self'|'other'|'couple'>('all')
+  const [nPhaseFilter, setNPhaseFilter] = useState<'all'|'planets'|'houses'|'combined'>('all')
+  const [nLangFilter, setNLangFilter] = useState<'all'|'en'|'my'>('all')
 
   const filteredReadings = useMemo(() => {
     const q = rQuery.trim().toLowerCase()
@@ -118,6 +159,31 @@ export default function AdminDashboard({ users, readings, guidances }: { users: 
     return arr
   }, [readingsState, rQuery, rSort, rCats])
 
+  const filteredNatalRecords = useMemo(() => {
+    const q = nQuery.trim().toLowerCase()
+    return natalState.filter(record => {
+      const userText = `${record.user?.name || ''} ${record.user?.email || ''} ${
+        record.user?.phoneCode && record.user?.phoneNumber ? `+${record.user.phoneCode} ${record.user.phoneNumber}` : ''
+      }`.toLowerCase()
+      const labelText = typeof record.request?.label === 'string' ? record.request.label.toLowerCase() : ''
+      const okQuery = !q || userText.includes(q) || labelText.includes(q)
+      const okContext = nContextFilter === 'all' || record.context === nContextFilter
+      const okLang = nLangFilter === 'all' || record.language === nLangFilter
+      const okPhase =
+        nPhaseFilter === 'all'
+          ? true
+          : nPhaseFilter === 'combined'
+            ? !record.phase || record.context === 'couple'
+            : record.phase === nPhaseFilter
+      return okQuery && okContext && okLang && okPhase
+    })
+  }, [natalState, nQuery, nContextFilter, nLangFilter, nPhaseFilter])
+  const getNatalPhaseLabel = (record: NatalRecord) => {
+    if (record.context === 'couple') return 'Couple summary'
+    if (!record.phase) return '—'
+    return record.phase === 'planets' ? 'Planets' : 'Houses'
+  }
+
   async function deleteUser(id: string, name: string) {
     if (!confirm(`Delete user "${name}" and all readings? This cannot be undone.`)) return
     try {
@@ -126,6 +192,7 @@ export default function AdminDashboard({ users, readings, guidances }: { users: 
       setUsersState(prev => prev.filter(u => u.id !== id))
       setReadingsState(prev => prev.filter(r => r.userId !== id))
       setGuidancesState(prev => prev.filter(g => g.userId !== id))
+      setNatalState(prev => prev.filter(n => n.userId !== id))
       if (openUserId === id) setOpenUserId(null)
     } catch (e) {
       alert('Failed to delete user.')
@@ -140,6 +207,7 @@ export default function AdminDashboard({ users, readings, guidances }: { users: 
           <button onClick={() => setTab('users')} className={`w-full text-left px-3 py-2 rounded-md border ${tab==='users'?'border-mok-gold bg-black/40':'border-transparent hover:border-mok-goldDeep/30'}`}>Users</button>
           <button onClick={() => setTab('readings')} className={`w-full text-left px-3 py-2 rounded-md border ${tab==='readings'?'border-mok-gold bg-black/40':'border-transparent hover:border-mok-goldDeep/30'}`}>Readings</button>
           <button onClick={() => setTab('guidance')} className={`w-full text-left px-3 py-2 rounded-md border ${tab==='guidance'?'border-mok-gold bg-black/40':'border-transparent hover:border-mok-goldDeep/30'}`}>Guidance</button>
+          <button onClick={() => setTab('natal')} className={`w-full text-left px-3 py-2 rounded-md border ${tab==='natal'?'border-mok-gold bg-black/40':'border-transparent hover:border-mok-goldDeep/30'}`}>Natal Chart</button>
           <button onClick={() => setTab('zodiac')} className={`w-full text-left px-3 py-2 rounded-md border ${tab==='zodiac'?'border-mok-gold bg-black/40':'border-transparent hover:border-mok-goldDeep/30'}`}>Zodiac</button>
         </nav>
       </aside>
@@ -365,6 +433,106 @@ export default function AdminDashboard({ users, readings, guidances }: { users: 
           </section>
         )}
 
+        {tab === 'natal' && (
+          <section className="space-y-4">
+            <div className="flex flex-wrap items-center gap-2">
+              <input
+                value={nQuery}
+                onChange={e => setNQuery(e.target.value)}
+                placeholder="Search user, email, phone, or label"
+                className="h-9 w-72 max-w-full rounded-md bg-black/40 border border-mok-goldDeep/40 px-3 outline-none"
+              />
+              <select
+                value={nContextFilter}
+                onChange={e => setNContextFilter(e.target.value as any)}
+                className="h-9 rounded-md bg-black/40 border border-mok-goldDeep/40 px-2"
+              >
+                <option value="all">All contexts</option>
+                <option value="self">Self</option>
+                <option value="other">Other</option>
+                <option value="couple">Couple</option>
+              </select>
+              <select
+                value={nPhaseFilter}
+                onChange={e => setNPhaseFilter(e.target.value as any)}
+                className="h-9 rounded-md bg-black/40 border border-mok-goldDeep/40 px-2"
+              >
+                <option value="all">Any phase</option>
+                <option value="planets">Planets</option>
+                <option value="houses">Houses</option>
+                <option value="combined">Couple summary</option>
+              </select>
+              <select
+                value={nLangFilter}
+                onChange={e => setNLangFilter(e.target.value as any)}
+                className="h-9 rounded-md bg-black/40 border border-mok-goldDeep/40 px-2"
+              >
+                <option value="all">All languages</option>
+                <option value="my">မြန်မာ</option>
+                <option value="en">English</option>
+              </select>
+            </div>
+            <div className="text-xs text-neutral-400">
+              Total records: <span className="text-mok-gold">{natalState.length}</span>
+              {filteredNatalRecords.length !== natalState.length && (
+                <> · Showing: <span className="text-mok-gold">{filteredNatalRecords.length}</span></>
+              )}
+            </div>
+            <div className="overflow-x-auto border border-mok-goldDeep/30 rounded-lg">
+              <table className="w-full text-sm">
+                <thead className="bg-mok-smoke/60">
+                  <tr>
+                    <th className="p-2 text-left">When</th>
+                    <th className="p-2 text-left">User</th>
+                    <th className="p-2 text-left">Contact</th>
+                    <th className="p-2 text-left">Context</th>
+                    <th className="p-2 text-left">Phase</th>
+                    <th className="p-2 text-left">Language</th>
+                    <th className="p-2 text-left">Label</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {filteredNatalRecords.map(record => (
+                    <tr
+                      key={record.id}
+                      onClick={() => setOpenNatalRecord(record)}
+                      className="border-t border-mok-goldDeep/20 align-top hover:bg-black/30 cursor-pointer"
+                    >
+                      <td className="p-2 whitespace-nowrap">{new Date(record.createdAt).toLocaleString()}</td>
+                      <td className="p-2 whitespace-nowrap">{record.user?.name || '—'}</td>
+                      <td className="p-2 whitespace-nowrap">
+                        {record.user?.email ||
+                          (record.user?.phoneCode && record.user?.phoneNumber
+                            ? `+${record.user.phoneCode} ${record.user.phoneNumber}`
+                            : '—')}
+                      </td>
+                      <td className="p-2">
+                        <span className="inline-block rounded border border-mok-goldDeep/40 px-2 py-0.5 text-xs capitalize">
+                          {record.context}
+                        </span>
+                      </td>
+                      <td className="p-2 whitespace-nowrap">{getNatalPhaseLabel(record)}</td>
+                      <td className="p-2 whitespace-nowrap">{record.language === 'en' ? 'English' : 'မြန်မာ'}</td>
+                      <td className="p-2">
+                        <div className="line-clamp-2 text-neutral-300">
+                          {typeof record.request?.label === 'string' ? record.request.label : '—'}
+                        </div>
+                      </td>
+                    </tr>
+                  ))}
+                  {filteredNatalRecords.length === 0 && (
+                    <tr>
+                      <td className="p-3 text-neutral-400" colSpan={7}>
+                        No natal records found.
+                      </td>
+                    </tr>
+                  )}
+                </tbody>
+              </table>
+            </div>
+          </section>
+        )}
+
         {tab === 'zodiac' && (
           <section>
             <ZodiacAdmin />
@@ -431,6 +599,86 @@ export default function AdminDashboard({ users, readings, guidances }: { users: 
                 <div className="p-3 rounded-lg border border-mok-goldDeep/30 bg-black/30">
                   <div className="text-neutral-400 text-sm mb-1">Answer</div>
                   <div className="whitespace-pre-wrap leading-7">{openGuidance.answer}</div>
+                </div>
+              </div>
+            </div>
+          </div>
+        )}
+
+        {/* Natal record modal */}
+        {openNatalRecord && (
+          <div className="fixed inset-0 z-50 flex items-center justify-center p-4">
+            <div className="absolute inset-0 bg-black/70" onClick={()=>setOpenNatalRecord(null)} />
+            <div className="relative z-10 w-full max-w-4xl mx-4 rounded-2xl border border-mok-goldDeep/40 bg-mok-black p-5 shadow-xl max-h-[92vh] overflow-y-auto thin-scroll">
+              <div className="flex items-center justify-between mb-3">
+                <div>
+                  <div className="gold-gradient font-semibold">Natal record</div>
+                  <div className="text-xs text-neutral-400">
+                    {new Date(openNatalRecord.createdAt).toLocaleString()} · {openNatalRecord.context} · {getNatalPhaseLabel(openNatalRecord)} · {openNatalRecord.language === 'en' ? 'English' : 'မြန်မာ'}
+                  </div>
+                </div>
+                <button onClick={()=>setOpenNatalRecord(null)} className="px-3 py-1 rounded-md border border-mok-goldDeep/40 hover:border-mok-gold">Close</button>
+              </div>
+              <div className="space-y-4">
+                <div className="grid gap-3 md:grid-cols-2">
+                  <div className="rounded-lg border border-mok-goldDeep/30 bg-black/30 p-3">
+                    <div className="text-neutral-400 text-sm mb-1">User</div>
+                    <div className="text-sm text-neutral-200">{openNatalRecord.user?.name || '—'}</div>
+                    <div className="text-xs text-neutral-400">
+                      {openNatalRecord.user?.email ||
+                        (openNatalRecord.user?.phoneCode && openNatalRecord.user?.phoneNumber
+                          ? `+${openNatalRecord.user.phoneCode} ${openNatalRecord.user.phoneNumber}`
+                          : '—')}
+                    </div>
+                  </div>
+                  <div className="rounded-lg border border-mok-goldDeep/30 bg-black/30 p-3">
+                    <div className="text-neutral-400 text-sm mb-1">Label / Alias</div>
+                    <div className="text-sm text-neutral-200">
+                      {typeof openNatalRecord.request?.label === 'string' ? openNatalRecord.request.label : '—'}
+                    </div>
+                  </div>
+                </div>
+
+                <NatalRequestDetails record={openNatalRecord} />
+
+                <div className="rounded-lg border border-mok-goldDeep/30 bg-black/30 p-3">
+                  <div className="text-xs font-semibold uppercase tracking-[0.3em] text-mok-gold mb-2">
+                    AI Topics
+                  </div>
+                  {openNatalRecord.response?.topics && openNatalRecord.response.topics.length > 0 ? (
+                    <div className="grid gap-3 md:grid-cols-2">
+                      {openNatalRecord.response.topics.map(topic => (
+                        <NatalTopicCard key={`${openNatalRecord.id}-${topic.id}`} topic={topic} />
+                      ))}
+                    </div>
+                  ) : (
+                    <p className="text-sm text-neutral-500">No AI topics stored for this record.</p>
+                  )}
+                </div>
+
+                <div className="rounded-lg border border-mok-goldDeep/30 bg-black/30 p-3">
+                  <div className="text-xs font-semibold uppercase tracking-[0.3em] text-mok-gold mb-2">
+                    Summary
+                  </div>
+                  {openNatalRecord.response?.summary ? (
+                    <div>
+                      <p className="text-sm font-semibold text-white">{openNatalRecord.response.summary.title}</p>
+                      <p className="mt-2 whitespace-pre-wrap text-sm text-neutral-200">
+                        {openNatalRecord.response.summary.message}
+                      </p>
+                      {openNatalRecord.response.summary.keywords && openNatalRecord.response.summary.keywords.length > 0 && (
+                        <div className="mt-3 flex flex-wrap gap-2 text-[11px] text-mok-gold">
+                          {openNatalRecord.response.summary.keywords.map((word, idx) => (
+                            <span key={`${openNatalRecord.id}-summary-${idx}`} className="rounded-full border border-mok-gold/50 px-3 py-0.5">
+                              {word}
+                            </span>
+                          ))}
+                        </div>
+                      )}
+                    </div>
+                  ) : (
+                    <p className="text-sm text-neutral-500">No summary captured for this record.</p>
+                  )}
                 </div>
               </div>
             </div>
@@ -841,4 +1089,95 @@ function ZodiacAdmin() {
       )}
     </div>
   )
+}
+
+function NatalRequestDetails({ record }: { record: NatalRecord }) {
+  const { request } = record
+  if (!request) return null
+  if (record.context === 'couple') {
+    const partners = Array.isArray(request.partners) ? request.partners : []
+    if (!partners.length) return null
+    return (
+      <div className="grid gap-3 md:grid-cols-2">
+        {partners.map((partner: any, idx: number) => {
+          const meta = partner?.metadata || {}
+          const lat = typeof meta.latitude === 'number' ? meta.latitude.toFixed(2) : meta.latitude
+          const lon = typeof meta.longitude === 'number' ? meta.longitude.toFixed(2) : meta.longitude
+          const tz = formatOffsetMinutes(meta.timezoneMinutes)
+          const label = partner?.label || (idx === 0 ? 'Partner A' : 'Partner B')
+          return (
+            <div key={`${label}-${idx}`} className="rounded-lg border border-mok-goldDeep/30 bg-black/30 p-3">
+              <div className="text-neutral-400 text-xs uppercase tracking-[0.3em] mb-1">
+                Partner {idx + 1}
+              </div>
+              <div className="text-sm font-semibold text-white">{label}</div>
+              {partner?.gender && (
+                <div className="text-xs text-neutral-400 capitalize mt-0.5">Gender: {partner.gender}</div>
+              )}
+              <ul className="mt-2 space-y-1 text-xs text-neutral-300">
+                <li>
+                  Birth: {meta.birthDate || '—'}
+                  {meta.birthTime ? ` · ${meta.birthTime}` : ''}
+                </li>
+                <li>
+                  Coords: {lat || '—'}{lat && lon ? ', ' : ''}{lon || ''}
+                </li>
+                <li>{tz}</li>
+                <li>House system: {meta.houseSystem || '—'}</li>
+              </ul>
+            </div>
+          )
+        })}
+      </div>
+    )
+  }
+  const meta = request.metadata || {}
+  const lat = typeof meta.latitude === 'number' ? meta.latitude.toFixed(2) : meta.latitude
+  const lon = typeof meta.longitude === 'number' ? meta.longitude.toFixed(2) : meta.longitude
+  const tz = formatOffsetMinutes(meta.timezoneMinutes)
+  return (
+    <div className="rounded-lg border border-mok-goldDeep/30 bg-black/30 p-3">
+      <div className="text-neutral-400 text-sm mb-1">Birth details</div>
+      <ul className="space-y-1 text-xs text-neutral-300">
+        <li>
+          Birth: {meta.birthDate || '—'}
+          {meta.birthTime ? ` · ${meta.birthTime}` : ''}
+        </li>
+        <li>
+          Coords: {lat || '—'}{lat && lon ? ', ' : ''}{lon || ''}
+        </li>
+        <li>{tz}</li>
+        <li>House system: {meta.houseSystem || '—'}</li>
+        {request.gender && <li>Gender: {request.gender}</li>}
+      </ul>
+    </div>
+  )
+}
+
+function NatalTopicCard({ topic }: { topic: NatalTopic }) {
+  return (
+    <article className="rounded-xl border border-mok-goldDeep/30 bg-gradient-to-b from-black/60 to-black/30 p-3">
+      <p className="text-[11px] uppercase tracking-[0.3em] text-mok-gold/80">{topic.focus}</p>
+      <p className="mt-1 text-base font-semibold text-white">{topic.title}</p>
+      <p className="mt-2 whitespace-pre-wrap text-sm text-neutral-200">{topic.message}</p>
+      {topic.keywords && topic.keywords.length > 0 && (
+        <div className="mt-3 flex flex-wrap gap-2 text-[11px] text-mok-gold">
+          {topic.keywords.map((keyword, idx) => (
+            <span key={`${topic.id}-${idx}`} className="rounded-full border border-mok-gold/40 px-3 py-0.5">
+              {keyword}
+            </span>
+          ))}
+        </div>
+      )}
+    </article>
+  )
+}
+
+function formatOffsetMinutes(value?: number | null) {
+  if (typeof value !== 'number' || Number.isNaN(value)) return 'UTC±00:00'
+  const sign = value >= 0 ? '+' : '-'
+  const abs = Math.abs(value)
+  const hours = Math.floor(abs / 60)
+  const mins = abs % 60
+  return `UTC${sign}${hours.toString().padStart(2, '0')}:${mins.toString().padStart(2, '0')}`
 }
