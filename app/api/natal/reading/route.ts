@@ -684,6 +684,25 @@ async function askOpenAI(bundle: PromptBundle, trace: Record<string, any> = {}) 
   return null
 }
 
+async function generateAiText(bundle: PromptBundle, trace: Record<string, any>) {
+  const attempts: Array<{ name: 'gemini' | 'openai'; runner: typeof askGemini | typeof askOpenAI }> = [
+    { name: 'gemini', runner: askGemini },
+    { name: 'openai', runner: askOpenAI }
+  ]
+
+  for (const attempt of attempts) {
+    const started = Date.now()
+    const text = await attempt.runner(bundle, trace)
+    const elapsedMs = Date.now() - started
+    if (text) {
+      logInfo('NATAL_AI_PROVIDER', { ...trace, provider: attempt.name, status: 'success', elapsedMs })
+      return text
+    }
+    logInfo('NATAL_AI_PROVIDER', { ...trace, provider: attempt.name, status: 'failed', elapsedMs })
+  }
+  return null
+}
+
 function extractJson(text: string | null) {
   if (!text) return null
   const trimmed = text.trim()
@@ -968,10 +987,7 @@ export async function POST(req: Request) {
     })
 
     const bundle = buildCouplePrompt({ partners, language })
-    let aiText = await askOpenAI(bundle, { ...meta, userId: auth.uid, language, context })
-    if (!aiText) {
-      aiText = await askGemini(bundle, { ...meta, userId: auth.uid, language, context })
-    }
+    const aiText = await generateAiText(bundle, { ...meta, userId: auth.uid, language, context })
     if (!aiText) {
       logError('NATAL_COUPLE_AI_EMPTY', { ...meta, userId: auth.uid, language })
       const message = language === 'en'
@@ -1035,10 +1051,7 @@ export async function POST(req: Request) {
   })
 
   const bundle = buildPrompt({ context, phase, metadata, planets, houses, asc, mid, language, label, gender })
-  let aiText = await askOpenAI(bundle, { ...meta, userId: auth.uid, phase, language, context })
-  if (!aiText) {
-    aiText = await askGemini(bundle, { ...meta, userId: auth.uid, phase, language, context })
-  }
+  const aiText = await generateAiText(bundle, { ...meta, userId: auth.uid, phase, language, context })
 
   if (!aiText) {
     logError('NATAL_AI_EMPTY', { ...meta, userId: auth.uid, phase, language, context })
