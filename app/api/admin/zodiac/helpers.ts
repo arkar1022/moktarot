@@ -94,12 +94,14 @@ Return ONLY valid JSON in this exact structure (no markdown, prose, or extra key
 Instructions:
 - "my" must be natural Burmese (Unicode) with warm, grounded tone.
 - "en" must be natural English with the same practical guidance.
-- Each field should contain 3–4 sentences that mix insight + actionable steps.
+- Each field should contain 4–6 sentences that mix insight + actionable steps.
+- Anchor every paragraph in concrete symbolism from the drawn cards—reference suits, elements, numerology, positions, or visual imagery (vehicles, tools, scenery, posture) to justify the advice.
 - Relationship should cover romance, family, and social harmony.
 - WorkMoney covers career momentum plus finances.
-- Health must mention both mental and physical well-being. If hints emerge, name relevant body parts or systems (e.g., heart, digestion, spine, lungs) and offer gentle care tips (hydration, stretches, check-ups, rest) without making diagnoses.
+- Health must mention both mental and physical well-being. Use the card symbols to pinpoint the affected body parts, senses, or activities (right hand, driving posture, urinary system, headaches, breathing, etc.) and offer gentle care tips (hydration, stretches, check-ups, rest) without making diagnoses.
 - Education can include learning, upskilling, travel-for-learning, or philosophical growth.
-- Warnings should call out tangible risks and close with two specific action steps separated by semicolons.
+- Warnings should call out tangible risks tied to the imagery (e.g., machinery, sharp objects, travel routes) and close with two specific action steps separated by semicolons.
+- Every section must clearly differentiate the most relevant characters or settings implied by the cards instead of giving generic guidance.
 - Never mention tarot cards outright. Keep things respectful, contemporary, and culturally aware.`
 
   const raw = await askGemini(prompt)

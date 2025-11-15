@@ -116,154 +116,154 @@ const DEFAULT_NAME: Record<Lang, string> = {
 
 const PLANET_THEMES: Record<typeof PLANET_ORDER[number], { focus: Record<Lang, string>; keywords: Record<Lang, string[]> }> = {
   sun: {
-    focus: { en: 'Identity & vitality', my: 'ကိုယ်ပိုင်စိတ်ဓာတ်နှင့် အသက်အင်အား' },
-    keywords: { en: ['identity','confidence'], my: ['ကိုယ်ပိုင်','ယုံကြည်ချက်'] }
+    focus: { en: 'Identity & vitality', my: 'Identity & vitality' },
+    keywords: { en: ['identity','confidence'], my: ['identity','confidence'] }
   },
   moon: {
-    focus: { en: 'Emotional safety', my: 'စိတ်ခံစားမှု လုံခြုံရေး' },
-    keywords: { en: ['feelings','intuition'], my: ['ခံစားချက်','အတွေးထင်ဟပ်'] }
+    focus: { en: 'Emotional safety', my: 'Emotional safety' },
+    keywords: { en: ['feelings','intuition'], my: ['feelings','intuition'] }
   },
   mercury: {
-    focus: { en: 'Mind & communication', my: 'စိတ်နှင့် ဆက်သွယ်မှု' },
-    keywords: { en: ['ideas','dialogue'], my: ['ထင်မြင်ချက်','ဆက်သွယ်မှု'] }
+    focus: { en: 'Mind & communication', my: 'Mind & communication' },
+    keywords: { en: ['ideas','dialogue'], my: ['ideas','dialogue'] }
   },
   venus: {
-    focus: { en: 'Love & magnetism', my: 'ချစ်ခြင်းနှင့် ဆွဲဆောင်မှု' },
-    keywords: { en: ['love','harmony'], my: ['ချစ်ခြင်း','သဟဇာတ'] }
+    focus: { en: 'Love & magnetism', my: 'Love & magnetism' },
+    keywords: { en: ['love','harmony'], my: ['love','harmony'] }
   },
   mars: {
-    focus: { en: 'Drive & courage', my: 'အရေးတကြီးလုပ်သည့်စိတ်နှင့် သတ္တိ' },
-    keywords: { en: ['drive','courage'], my: ['လှုံ့ဆော်မှု','သတ္တိ'] }
+    focus: { en: 'Drive & courage', my: 'Drive & courage' },
+    keywords: { en: ['drive','courage'], my: ['drive','courage'] }
   },
   jupiter: {
-    focus: { en: 'Growth & optimism', my: 'တိုးတက်မှုနှင့် မျှော်လင့်ချက်' },
-    keywords: { en: ['growth','faith'], my: ['တိုးတက်','ယုံကြည်မှု'] }
+    focus: { en: 'Growth & optimism', my: 'Growth & optimism' },
+    keywords: { en: ['growth','faith'], my: ['growth','faith'] }
   },
   saturn: {
-    focus: { en: 'Discipline & structure', my: 'စည်းမျဉ်းနှင့် တည်ဆောက်မှု' },
-    keywords: { en: ['duty','structure'], my: ['တာဝန်','တည်ဆောက်မှု'] }
+    focus: { en: 'Discipline & structure', my: 'Discipline & structure' },
+    keywords: { en: ['duty','structure'], my: ['duty','structure'] }
   },
   uranus: {
-    focus: { en: 'Innovation & freedom', my: 'တီထွင်မှုနှင့် လွတ်လပ်ခွင့်' },
-    keywords: { en: ['change','freedom'], my: ['ပြောင်းလဲမှု','လွတ်လပ်မှု'] }
+    focus: { en: 'Innovation & freedom', my: 'Innovation & freedom' },
+    keywords: { en: ['change','freedom'], my: ['change','freedom'] }
   },
   neptune: {
-    focus: { en: 'Dreams & spirituality', my: 'အိပ်မက်နှင့် ဝိညာဉ်ရေးရာ' },
-    keywords: { en: ['dreams','compassion'], my: ['အိပ်မက်','မျက်နှာဖြူချမ်းမှု'] }
+    focus: { en: 'Dreams & spirituality', my: 'Dreams & spirituality' },
+    keywords: { en: ['dreams','compassion'], my: ['dreams','compassion'] }
   },
   pluto: {
-    focus: { en: 'Power & rebirth', my: 'စွမ်းအားနှင့် ပြန်လည်မွေးဖွားမှု' },
-    keywords: { en: ['power','rebirth'], my: ['စွမ်းအား','ပြန်လည်ထမြောက်'] }
+    focus: { en: 'Power & rebirth', my: 'Power & rebirth' },
+    keywords: { en: ['power','rebirth'], my: ['power','rebirth'] }
   },
   chiron: {
-    focus: { en: 'Healing & vulnerability', my: 'ကုထုံးနှင့် အလွယ်တကူထိခိုက်နိုင်မှု' },
-    keywords: { en: ['healing','wisdom'], my: ['ကုထုံး','ပညာ'] }
+    focus: { en: 'Healing & vulnerability', my: 'Healing & vulnerability' },
+    keywords: { en: ['healing','wisdom'], my: ['healing','wisdom'] }
   },
   northNode: {
-    focus: { en: 'Destiny & stretch zone', my: 'ဘဝရည်မှန်းချက်နှင့် မြင်ကွင်းတိုးချဲ့မှု' },
-    keywords: { en: ['destiny','progress'], my: ['ဘဝရေးရာ','တိုးတက်မှု'] }
+    focus: { en: 'Destiny & stretch zone', my: 'Destiny & stretch zone' },
+    keywords: { en: ['destiny','progress'], my: ['destiny','progress'] }
   }
 }
 
 const HOUSE_THEMES: Record<number, { focus: Record<Lang, string>; keywords: Record<Lang, string[]> }> = {
-  1: { focus: { en: 'Self & identity', my: 'ကိုယ်ပိုင်ပုံရိပ်' }, keywords: { en: ['self','appearance'], my: ['ကိုယ်ပုံရိပ်','ပြင်ပ'] } },
-  2: { focus: { en: 'Resources & values', my: 'ပိုင်ဆိုင်မှုနှင့် တန်ဖိုး' }, keywords: { en: ['money','values'], my: ['ငွေကြေး','တန်ဖိုး'] } },
-  3: { focus: { en: 'Communication & siblings', my: 'ဆက်သွယ်မှုနှင့် ညီအစ်ကိုမောင်နှမ' }, keywords: { en: ['speech','siblings'], my: ['စကားပြော','မောင်နှမ'] } },
-  4: { focus: { en: 'Home & roots', my: 'အိမ်နှင့် မျိုးရိုးရာ' }, keywords: { en: ['home','roots'], my: ['အိမ်','မျိုးရိုး'] } },
-  5: { focus: { en: 'Creativity & romance', my: 'ဖန်တီးမှုနှင့် အားလပ်ချစ်ရေး' }, keywords: { en: ['joy','romance'], my: ['ပျော်ရွှင်','ချစ်ရေး'] } },
-  6: { focus: { en: 'Daily work & wellness', my: 'နေ့စဉ်လုပ်ငန်းနှင့် ကျန်းမာရေး' }, keywords: { en: ['routine','health'], my: ['နေ့စဉ်အလုပ်','က်န်းမာရေး'] } },
-  7: { focus: { en: 'Partnerships & mirrors', my: 'မိတ်ဖက်နှင့် အကြမ်းဖျင်းထင်မြင်ချက်' }, keywords: { en: ['partners','marriage'], my: ['မိတ်ဖက်','အိမ်ထောင်'] } },
-  8: { focus: { en: 'Shared resources & rebirth', my: 'အမျှဝေ ပိုင်ဆိုင်မှုနှင့် ပြန်လည်မွေးဖွား' }, keywords: { en: ['intimacy','rebirth'], my: ['နီးစပ်ခြင်း','ပြန်လည်မွေးဖွား'] } },
-  9: { focus: { en: 'Beliefs & exploration', my: 'ယုံကြည်ချက်နှင့် ခရီးသွားမှု' }, keywords: { en: ['beliefs','travel'], my: ['ယုံကြည်ချက်','ခရီး'] } },
- 10: { focus: { en: 'Career & reputation', my: 'အလုပ်အကိုင်နှင့် ကောင်းတင့်သရော်' }, keywords: { en: ['career','status'], my: ['အလုပ်အကိုင်','ဂုဏ်သိက္ခာ'] } },
- 11: { focus: { en: 'Networks & aspirations', my: 'မိတ်ဆွေကွန်ယက်နှင့် အလားအလာ' }, keywords: { en: ['friends','future'], my: ['မိတ်ဆွေ','အနာဂတ်'] } },
- 12: { focus: { en: 'Inner world & healing', my: 'အတွင်းဗိမာန်နှင့် ကုထုံး' }, keywords: { en: ['spirit','healing'], my: ['ဝိညာဉ်','ကုထုံး'] } }
+  1: { focus: { en: 'Self & identity', my: 'Self & identity' }, keywords: { en: ['self','appearance'], my: ['self','appearance'] } },
+  2: { focus: { en: 'Resources & values', my: 'Resources & values' }, keywords: { en: ['money','values'], my: ['money','values'] } },
+  3: { focus: { en: 'Communication & siblings', my: 'Communication & siblings' }, keywords: { en: ['speech','siblings'], my: ['speech','siblings'] } },
+  4: { focus: { en: 'Home & roots', my: 'Home & roots' }, keywords: { en: ['home','roots'], my: ['home','roots'] } },
+  5: { focus: { en: 'Creativity & romance', my: 'Creativity & romance' }, keywords: { en: ['joy','romance'], my: ['joy','romance'] } },
+  6: { focus: { en: 'Daily work & wellness', my: 'Daily work & wellness' }, keywords: { en: ['routine','health'], my: ['routine','health'] } },
+  7: { focus: { en: 'Partnerships & mirrors', my: 'Partnerships & mirrors' }, keywords: { en: ['partners','marriage'], my: ['partners','marriage'] } },
+  8: { focus: { en: 'Shared resources & rebirth', my: 'Shared resources & rebirth' }, keywords: { en: ['intimacy','rebirth'], my: ['intimacy','rebirth'] } },
+  9: { focus: { en: 'Beliefs & exploration', my: 'Beliefs & exploration' }, keywords: { en: ['beliefs','travel'], my: ['beliefs','travel'] } },
+ 10: { focus: { en: 'Career & reputation', my: 'Career & reputation' }, keywords: { en: ['career','status'], my: ['career','status'] } },
+ 11: { focus: { en: 'Networks & aspirations', my: 'Networks & aspirations' }, keywords: { en: ['friends','future'], my: ['friends','future'] } },
+ 12: { focus: { en: 'Inner world & healing', my: 'Inner world & healing' }, keywords: { en: ['spirit','healing'], my: ['spirit','healing'] } }
 }
 
 const COUPLE_TOPIC_BLUEPRINTS = [
   {
     id: 'love_life',
-    label: { en: 'Love life & chemistry', my: 'ချစ်ရေးနှင့် ဆက်ဆံမှု' },
-    focus: { en: 'How romance and attraction naturally unfold', my: 'ချစ်ရေးဆက်ဆံမှု ဘယ်လို ဖြောင့်မတ်တက်နေတာ' },
-    keywords: { en: ['romance','chemistry'], my: ['ချစ်ရေး','ဆက်ဆံမှု'] },
+    label: { en: 'Love life & chemistry', my: 'Love life & chemistry' },
+    focus: { en: 'How romance and attraction naturally unfold', my: 'How romance and attraction naturally unfold' },
+    keywords: { en: ['romance','chemistry'], my: ['romance','chemistry'] },
     hint: 'Describe intimacy style, affection needs, and how they warm up to each other.'
   },
   {
     id: 'communication',
-    label: { en: 'Communication flow', my: 'ဆက်သွယ်ပုံစံ' },
-    focus: { en: 'Words, listening, and mental pacing', my: 'စကားဆက်ခြင်း၊ နားထောင်ပေးမှုနှင့် စိတ်ပိုင်းညီညွတ်မှု' },
-    keywords: { en: ['dialogue','listening'], my: ['ပြောဆိုမှု','နားထောင်မှု'] },
+    label: { en: 'Communication flow', my: 'Communication flow' },
+    focus: { en: 'Words, listening, and mental pacing', my: 'Words, listening, and mental pacing' },
+    keywords: { en: ['dialogue','listening'], my: ['dialogue','listening'] },
     hint: 'Highlight tone, speed, and tips for feeling heard.'
   },
   {
     id: 'strengths',
-    label: { en: 'Shared strengths', my: 'အတူရှိသော အားသာချက်' },
-    focus: { en: 'The reliability and gifts they bring out in each other', my: 'တစ်ဦးနှင့်တစ်ဦး တိုးတက်စေသော အားသာချက်များ' },
-    keywords: { en: ['strengths','gifts'], my: ['အားသာချက်','ကောင်းချီး'] },
+    label: { en: 'Shared strengths', my: 'Shared strengths' },
+    focus: { en: 'The reliability and gifts they bring out in each other', my: 'The reliability and gifts they bring out in each other' },
+    keywords: { en: ['strengths','gifts'], my: ['strengths','gifts'] },
     hint: 'Celebrate natural wins they should lean on.'
   },
   {
     id: 'weaknesses',
-    label: { en: 'Tender spots', my: 'အားနည်းချက်များ' },
-    focus: { en: 'Places that need gentleness or healthier boundaries', my: 'နူးညံ့မှုလိုအပ်သော နေရာများ' },
-    keywords: { en: ['awareness','patience'], my: ['သတိပြု','သူနာပြုမှု'] },
+    label: { en: 'Tender spots', my: 'Tender spots' },
+    focus: { en: 'Places that need gentleness or healthier boundaries', my: 'Places that need gentleness or healthier boundaries' },
+    keywords: { en: ['awareness','patience'], my: ['awareness','patience'] },
     hint: 'Name habits that can bruise the bond.'
   },
   {
     id: 'threats',
-    label: { en: 'Pressure points', my: 'ဖိအားပေးရာနေရာ' },
-    focus: { en: 'External or internal stressors that could derail them', my: 'အပြင်/အတွင်း ဖိအားပေးသူများ' },
-    keywords: { en: ['threats','pressure'], my: ['ခြိမ်းခြောက်မှု','ဖိအား'] },
+    label: { en: 'Pressure points', my: 'Pressure points' },
+    focus: { en: 'External or internal stressors that could derail them', my: 'External or internal stressors that could derail them' },
+    keywords: { en: ['threats','pressure'], my: ['threats','pressure'] },
     hint: 'Offer proactive guarding tips.'
   },
   {
     id: 'emotional_safety',
-    label: { en: 'Emotional safety', my: 'ခံစားချက် လုံခြုံရေး' },
-    focus: { en: 'How they soothe, reassure, and hold space', my: 'အပြန်အလှန် မည်သို့ ပြေပေးကြသလဲ' },
-    keywords: { en: ['care','warmth'], my: ['ဂရုစိုက်မှု','နွေးထွေးမှု'] },
+    label: { en: 'Emotional safety', my: 'Emotional safety' },
+    focus: { en: 'How they soothe, reassure, and hold space', my: 'How they soothe, reassure, and hold space' },
+    keywords: { en: ['care','warmth'], my: ['care','warmth'] },
     hint: 'Explain how to keep hearts open.'
   },
   {
     id: 'growth',
-    label: { en: 'Growth & vision', my: 'တိုးတက်ရေးနှင့် အမြင်' },
-    focus: { en: 'Shared dreams, learning edges, future focus', my: 'အတူတကွ အကောင်းမြင်ကွင်းများနှင့် တိုးတက်မှု' },
-    keywords: { en: ['future','growth'], my: ['အနာဂတ်','တိုးတက်မှု'] },
+    label: { en: 'Growth & vision', my: 'Growth & vision' },
+    focus: { en: 'Shared dreams, learning edges, future focus', my: 'Shared dreams, learning edges, future focus' },
+    keywords: { en: ['future','growth'], my: ['future','growth'] },
     hint: 'Tie to big goals or legacy.'
   },
   {
     id: 'conflict',
-    label: { en: 'Conflict repair', my: 'အငြင်းပြန်လည် ပြုပြင်ခြင်း' },
-    focus: { en: 'How they fight, cool off, and heal ruptures', my: 'အငြင်းပွားသည့်အခါ ပြန်ကြားနားလည်ပုံ' },
-    keywords: { en: ['conflict','repair'], my: ['အငြင်းပွားမှု','ပြန်လည်ပြုပြင်'] },
+    label: { en: 'Conflict repair', my: 'Conflict repair' },
+    focus: { en: 'How they fight, cool off, and heal ruptures', my: 'How they fight, cool off, and heal ruptures' },
+    keywords: { en: ['conflict','repair'], my: ['conflict','repair'] },
     hint: 'Offer steps for fast repair.'
   },
   {
     id: 'values',
-    label: { en: 'Values & lifestyle', my: 'တန်ဖိုးနှင့် ဘဝပုံစံ' },
-    focus: { en: 'Practical matters, money, family, routines', my: 'နေ့စဉ်ဘဝ၊ ငွေကြေး၊ မိသားစုသဘောထား' },
-    keywords: { en: ['values','lifestyle'], my: ['တန်ဖိုး','ဘဝပုံစံ'] },
+    label: { en: 'Values & lifestyle', my: 'Values & lifestyle' },
+    focus: { en: 'Practical matters, money, family, routines', my: 'Practical matters, money, family, routines' },
+    keywords: { en: ['values','lifestyle'], my: ['values','lifestyle'] },
     hint: 'Note alignment gaps or harmonies.'
   },
   {
     id: 'support',
-    label: { en: 'Support & care', my: 'အထောက်အပံ့နှင့် ဂရုစိုက်မှု' },
-    focus: { en: 'How they advocate for each other in public/private', my: 'အများကြီး/အထူးနေရာတွင် တစ်ဦးကိုတစ်ဦး မည်သို့ ကူညီပေးသလဲ' },
-    keywords: { en: ['support','allyship'], my: ['အထောက်အပံ့','မိတ်ဖက်မှု'] },
+    label: { en: 'Support & care', my: 'Support & care' },
+    focus: { en: 'How they advocate for each other in public/private', my: 'How they advocate for each other in public/private' },
+    keywords: { en: ['support','allyship'], my: ['support','allyship'] },
     hint: 'Encourage rituals of care.'
   },
   {
     id: 'adventure',
-    label: { en: 'Play & adventure', my: 'ပျော်စရာနှင့် စွန့်စားမှု' },
-    focus: { en: 'Fun, novelty, and rituals that keep sparks alive', my: 'ပျော်ရွှင်မှု၊ အသစ်စမ်းသပ်မှု' },
-    keywords: { en: ['play','spark'], my: ['ကစားမှု','စိတ်လှုပ်ရှားမှု'] },
+    label: { en: 'Play & adventure', my: 'Play & adventure' },
+    focus: { en: 'Fun, novelty, and rituals that keep sparks alive', my: 'Fun, novelty, and rituals that keep sparks alive' },
+    keywords: { en: ['play','spark'], my: ['play','spark'] },
     hint: 'Suggest ways to keep things lively.'
   }
 ] as const
 const GENDER_TEXT: Record<Gender, { en: string; my: string }> = {
-  male: { en: 'male', my: 'ယောက်ျာ' },
-  female: { en: 'female', my: 'မ' },
-  nonbinary: { en: 'non-binary', my: 'အမျိုးအစားမသတ်မှတ်' },
-  unspecified: { en: 'unspecified', my: 'မသတ်မှတ်' }
+  male: { en: 'male', my: 'male' },
+  female: { en: 'female', my: 'female' },
+  nonbinary: { en: 'non-binary', my: 'non-binary' },
+  unspecified: { en: 'unspecified', my: 'unspecified' }
 }
 
 type PronounSet = { subject: string; object: string; possessive: string }
@@ -484,43 +484,29 @@ function buildPrompt(args: {
   return { system, user }
 }
 
-function buildCouplePrompt({ partners, language }: { partners: PartnerPayload[]; language: Lang }): PromptBundle {
-  const topicIds = COUPLE_TOPIC_BLUEPRINTS.map(topic => topic.id).join(', ')
-  const topicHints = COUPLE_TOPIC_BLUEPRINTS.map(topic => `${topic.id}: ${topic.hint}`).join('\n')
-  const system = 'You are MokTarot’s seasoned Burmese astrologer. Interpret compatibility with warmth, grounded pragmatism, and poetic clarity.'
 
-  const responseLanguageLine = language === 'en'
+const COUPLE_SYSTEM_PROMPT = 'You are MokTarot’s seasoned Burmese astrologer. Interpret compatibility with warmth, grounded pragmatism, and poetic clarity.'
+
+function coupleResponseLanguageLine(language: Lang) {
+  return language === 'en'
     ? 'Respond only in English with a grounded, poetic-but-practical voice.'
-    : 'Respond only in natural Burmese (Unicode). Use Myanmar script, keep the tone warm, grounded, and practical, and avoid transliteration or English fillers unless it is a name.'
+    : 'Respond only in Burmese (Unicode) using Myanmar script. Keep the tone warm, grounded, and practical, but make sure it sounds like a confident professional male narrator. Avoid transliteration or English fillers unless it is a name.'
+}
 
-  const detailInstruction = language === 'en'
+function coupleDetailInstruction(language: Lang) {
+  return language === 'en'
     ? 'Each topic message must be at least four full sentences (roughly two short paragraphs) weaving observation plus advice.'
-    : 'ခေါင်းစဉ်တစ်ခုစီတွင် ဗျာဥ်းချပြီး စိတ်ခံစားချက်နှင့် လက်တွေ့ အကြံပြုချက်ပေါင်းစပ်သည့် ဝါကျပေါင်း လေးခုပေါ်မူတည်သော အပိုဒ်၂ခုခန့် ရေးပါ။'
+    : 'Each topic message must be written in Burmese (Unicode), deliver at least four full sentences (roughly two short paragraphs), blend observation with advice, and maintain that confident professional male tone throughout.'
+}
 
-  const summaryInstruction = language === 'en'
-    ? 'Summary message must be at least three sentences and end with two actionable next steps separated by semicolons.'
-    : 'အနှုတ်ချုပ်စာပိုဒ်တွင် ဝါကျသုံးခုအနည်းဆုံး ပါဝင်စေရန်နှင့် အဆုံးတွင် လက်တွေ့ဆောင်ရွက်လို့ရသည့် အဆင့်နှစ်ခုကို ဆက်စပ်အကြံပေးချက်အဖြစ် ထည့်သွင်းပါ။'
+function coupleSummaryInstruction(language: Lang) {
+  return language === 'en'
+    ? 'Summary message must be at least seven sentences, clearly state whether the couple is highly compatible, workable, or misaligned (be candid—no sugar coating), spell out how the natal dynamics could damage marriage, family, finances, friendships, and health if mismanaged, describe how their future path is likely to unfold based purely on the natal analysis, and end with two actionable next steps separated by semicolons.'
+    : 'Summary message must be written in Burmese (Unicode), contain at least seven sentences, clearly state whether the couple is highly compatible, workable, or misaligned (be candid—no sugar coating), ဇာတာဆိုင်ရာ မညီထွေမှုကြောင့် အိမ်ထောင်ရေး၊ မိသားစု၊ ငွေကြေး၊ မိတ်ဆွေ၊ ကျန်းမာရေး စသော ဘဝအပိုင်းအစများကို ဘယ်လိုထိခိုက်စေနိုင်သလဲကို တိတိကျကျ ရှင်းပြပြီး၊ သူတို့ရဲ့ အနာဂတ်လမ်းကြောင်းကို ဇာတာအရသာအရ တည်ကြည်စွာ ဖော်ထုတ်ကာ အဆုံးတွင် လက်တွေ့အဆင့် ၂ ခုကို semicolon ဖြင့် ခွဲပြီး ထည့်သွင်းပါ။'
+}
 
-  const specificityInstruction = 'Anchor every topic in concrete chart details: cite planet/sign/house placements for each partner and mention both names whenever possible.'
-  const templateWarning = 'Write original language that fits the data; never reuse template phrases such as "shared ritual" or copy the hint wording.'
-  const hintUsageInstruction = 'Hints are for your reference only. Do not quote them verbatim or mirror their structure.'
-
-  const baseInstructions = [
-    'Blend both charts to explain how the duo connects, clashes, and grows.',
-    'Return JSON only with this shape: {"topics":[{"id":"","title":"","focus":"","message":"","keywords":["",""]}],"summary":{"title":"","message":"","keywords":["",""]}}',
-    `Use these topic ids exactly (keep order): ${topicIds}.`,
-    detailInstruction,
-    summaryInstruction,
-    'Each topic still needs <=3 short keywords tied to tangible behavior.',
-    specificityInstruction,
-    templateWarning,
-    responseLanguageLine,
-    hintUsageInstruction,
-    'Hints (for reference only; never echo them):',
-    topicHints
-  ]
-
-  const partnerBlocks = partners.map((partner, idx) => {
+function formatPartnerBlocks(partners: PartnerPayload[]) {
+  return partners.map((partner, idx) => {
     const header = [
       `Partner ${idx + 1}: ${partner.label} (${genderLabel(partner.gender, 'en')})`,
       `Birth: ${partner.metadata.birthDate} ${partner.metadata.birthTime} (${formatOffset(partner.metadata.timezoneMinutes)})`,
@@ -545,6 +531,37 @@ function buildCouplePrompt({ partners, language }: { partners: PartnerPayload[];
       angleRows.length ? `Angles: ${angleRows.join(' | ')}` : ''
     ].filter(Boolean).join('\n')
   })
+}
+
+function buildCouplePrompt({ partners, language }: { partners: PartnerPayload[]; language: Lang }): PromptBundle {
+  const topicIds = COUPLE_TOPIC_BLUEPRINTS.map(topic => topic.id).join(', ')
+  const topicHints = COUPLE_TOPIC_BLUEPRINTS.map(topic => `${topic.id}: ${topic.hint}`).join('\n')
+  const system = COUPLE_SYSTEM_PROMPT
+
+  const responseLanguageLine = coupleResponseLanguageLine(language)
+  const detailInstruction = coupleDetailInstruction(language)
+  const summaryInstruction = coupleSummaryInstruction(language)
+
+  const specificityInstruction = 'Anchor every topic in concrete chart details: cite planet/sign/house placements for each partner and mention both names whenever possible.'
+  const templateWarning = 'Write original language that fits the data; never reuse template phrases such as "shared ritual" or copy the hint wording.'
+  const hintUsageInstruction = 'Hints are for your reference only. Do not quote them verbatim or mirror their structure.'
+
+  const baseInstructions = [
+    'Blend both charts to explain how the duo connects, clashes, and grows.',
+    'Return JSON only with this shape: {"topics":[{"id":"","title":"","focus":"","message":"","keywords":["",""]}],"summary":{"title":"","message":"","keywords":["",""]}}',
+    `Use these topic ids exactly (keep order): ${topicIds}.`,
+    detailInstruction,
+    summaryInstruction,
+    'Each topic still needs <=3 short keywords tied to tangible behavior.',
+    specificityInstruction,
+    templateWarning,
+    responseLanguageLine,
+    hintUsageInstruction,
+    'Hints (for reference only; never echo them):',
+    topicHints
+  ]
+
+  const partnerBlocks = formatPartnerBlocks(partners)
 
   const user = [
     ...baseInstructions,
@@ -870,7 +887,7 @@ function extractSummary(raw: any, lang: Lang): ReadingSummary | null {
     ? raw.title.trim().slice(0, lang === 'en' ? 90 : 120)
     : null
   const message = typeof raw.message === 'string' && raw.message.trim()
-    ? raw.message.trim().slice(0, 700)
+    ? raw.message.trim()
     : null
   if (!title || !message) {
     return null
@@ -990,16 +1007,19 @@ export async function POST(req: Request) {
       request: { partners }
     })
 
+
+    const overloadMessage = language === 'en'
+      ? 'Our AI astrologer is currently overloaded because many users are requesting readings at the same time. Please give us a moment to catch up and try again later—thank you for your patience!'
+      : 'ဤအချိန်တွင် လူများစွာမှ တစ်ပြိုင်တည်း အသုံးပြုနေသဖြင့် AI ဖတ်ရှုမှု ဝန်ဆောင်မှုက overload ဖြစ်နေပါသည်။ နည်းနည်းနားပြီး နောက်တစ်ကြိမ် ပြန်လည်ကြိုးစားပေးပါ၊ စောင့်ဆိုင်းမှုအတွက် ကျေးဇူးတင်ပါတယ်။'
+
     const bundle = buildCouplePrompt({ partners, language })
     const aiResult = await generateAiText(bundle, { ...meta, userId: auth.uid, language, context })
     if (!aiResult) {
       logError('NATAL_COUPLE_AI_EMPTY', { ...meta, userId: auth.uid, language })
-      const message = language === 'en'
-        ? 'Our AI astrologer is currently overloaded because many users are requesting readings at the same time. Please give us a moment to catch up and try again later—thank you for your patience!'
-        : 'ဤအချိန်တွင် လူများစွာမှ တစ်ပြိုင်တည်း အသုံးပြုနေသဖြင့် AI ဖတ်ရှုမှု ဝန်ဆောင်မှုက overload ဖြစ်နေပါသည်။ နည်းနည်းနားပြီး နောက်တစ်ကြိမ် ပြန်လည်ကြိုးစားပေးပါ၊ စောင့်ဆိုင်းမှုအတွက် ကျေးဇူးတင်ပါတယ်။'
-      await markNatalRecordError(recordId, message)
-      return NextResponse.json({ error: message }, { status: 502 })
+      await markNatalRecordError(recordId, overloadMessage)
+      return NextResponse.json({ error: overloadMessage }, { status: 502 })
     }
+
     try {
       const payload = shapeCoupleResponse({ aiText: aiResult.text, lang: language })
       const responsePayload = aiResult.model ? { ...payload, model: aiResult.model } : payload
