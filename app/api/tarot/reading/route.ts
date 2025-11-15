@@ -22,7 +22,24 @@ async function askOpenAI(prompt: string, lang: 'my'|'en') {
   const makeBody = (model: string) => ({
     model,
     messages: [
-      { role: 'system', content: 'မြန်မာစာကို ရိုးရှင်းသဘောကျစွာ သုံးပြီး လူကိုးကားသံတစ်သံဖြင့် ဆွေးနွေးပေးပါ။ စာပေအရသာမထုံးစံပါစေ။ သိပ္ပံနည်းကျဖြစ်သော်လည်း အနူးအညွှတ်နှင့် စိတ်ပူကြပါစေဟု မစကားကောင်းပါ। အဖြေတွင် ကတ်တစ်ကတ်စီ၏ ရည်ညွှန်းချက်များကို မေးခွန်းနှင့် ဆက်စပ်အောင် တိုတောင်းပြောပီး နောက်ဆုံးတွင် စုပေါင်းသရုပ်ဆောင်ဖော်ပြချက်နှင့် လက်တွေ့လုပ်ရမယ့် အကြံပြုချက် 2-3 ခု ထည့်ပါ။' },
+      {
+        role: 'system',
+        content: [
+          'You are a warm yet confident male tarot reader who speaks plainly and practically.',
+          'Avoid poetic flourishes, relate each selected card to the user\'s question, then close with one overall takeaway and at least three actionable suggestions.',
+          'Do not restrict the overall answer to a specific sentence count—offer as much detail as needed while staying focused.',
+          'When the user compares multiple people or options, analyze the cards\' environments, numerology, suits, and archetypes to identify the strongest match, explicitly referencing genders, energies, or traits suggested by the cards.',
+          'If several people are mentioned, describe the appearance, vibe, and personality cues implied by each relevant card so the user can recognize who aligns closest.',
+          'When the user asks "when" or about timing, translate the cards\' numerology/astrological signals into a concrete window (e.g., within a week, by September-October, over 3 months) rather than vague wording.',
+          'Always cite the specific symbols or scenes from the drawn cards to justify recommendations instead of giving generic advice.',
+          lang === 'my'
+            ? 'Deliver the full response in Burmese (Myanmar) with a professional male tone that feels natural to Burmese clients.'
+            : 'Deliver the full response in English with the same confident tone.',
+          lang === 'my'
+            ? 'Leave tarot card names in English even when the body text is in Burmese.'
+            : ''
+        ].join(' ')
+      },
       { role: 'user', content: prompt }
     ],
     temperature: 0.85,
@@ -55,12 +72,15 @@ async function askGemini(prompt: string, lang: 'my'|'en') {
   const model = (process.env.GEMINI_MODEL || 'gemini-2.5-flash').trim()
   if (!key) return null
   try {
+    const localeHint = lang === 'my'
+      ? 'Localization: Provide the full answer in Burmese (Myanmar) using a professional male tarot reader tone that feels natural to Burmese clients.'
+      : 'Localization: Provide the full answer in English with the same confident male tone.'
     const res = await fetch(`https://generativelanguage.googleapis.com/v1beta/models/${encodeURIComponent(model)}:generateContent?key=${encodeURIComponent(key)}` , {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({
         contents: [
-          { role: 'user', parts: [{ text: `${lang==='en' ? 'Answer in English.' : 'မြန်မာဘာသာဖြင့် ဖြေပါ။'} အမျိုးသား တာရော့ဖတ်ရှုသူ (ယောကျ်ားသံ) သဘောတရားဖြင့် တိတိကျကျ ပြောပါ။\n\n${prompt}` }] }
+          { role: 'user', parts: [{ text: `${localeHint}\n\n${prompt}` }] }
         ],
         generationConfig: { temperature: 0.85 }
       })
@@ -173,8 +193,7 @@ export async function POST(req: Request) {
 
   const cardsText = selectedCards.map((c: any) => (typeof c === 'string' ? c : c.name)).join(', ')
   const displayName = (auth.name?.trim() || auth.email?.split('@')[0] || '').trim() || 'မိတ်ဆွေ'
-  const prompt = language === 'en' ?
-`User name: ${displayName}
+  const basePrompt = `User name: ${displayName}
 Question: "${q}"
 Selected cards: ${cardsText}
 
@@ -183,22 +202,26 @@ Tone & Structure:
 - Avoid overly romantic or flowery language.
 1) Summarize each selected card in relation to the question (opportunities/challenges/obstacles).
 2) End with one concise overall message (main takeaway).
-3) Add 2–3 practical, actionable suggestions (today/this week).
+3) Add at least 3 practical, actionable suggestions (today/this week) and include more when it helps clarity.
 4) Keep it practical and useful; avoid long poetic sentences.
-- Use ${displayName}'s name once at the start, then continue the explanation.`
-:
-`အသုံးပြုသူအမည်: ${displayName}
-မေးခွန်း: "${q}"
-ရွေးချယ်ထားသော ကတ်များ: ${cardsText}
+- Use ${displayName}'s name once at the start, then continue the explanation.
+- Do not limit the entire answer to a fixed number of sentences—elaborate as needed while staying focused.
 
-တုံ့ပြန်ရမည့် စတိုင်နှင့် ဖွဲ့စည်းပုံ (Tone & Structure):
-- အမျိုးသား တာရော့ဖတ်ရှုသူတစ်ဦးလို (ယောကျ်ားသံ) နွေးထွေးသော်လည်း ခိုင်မာတိကျစွာ ပြောပါ။
-- အလွန်ရည်းစားသို့မဟုတ် ပေါ့ပါးလွန်းသော စကားလုံးများကို ရှောင်ရှားပါ။
-1) ကတ်တစ်ကတ်စီ၏ အဓိပ္ပါယ်ကို မေးခွန်းနှင့် တိုက်ဆိုင်အောင် အတိုချုံး ခိုင်မာဖော်ပြပါ (အခွင့်အလမ်း/ရှားပါးချက်/အတားအဆီး).
-2) နောက်ဆုံးတွင် စုပေါင်းသဘောတရား (အဓိကမက်ဆေ့ချ်) ကို တစ်ပိုဒ် တိတိကျကျ ဆွဲထုတ်ပါ — စာတို/မကြာပါစေ။
-3) လက်တွေ့လုပ်ဆောင်နိုင်သော အကြံပြုချက် 2–3 ချက် ထည့်ပါ (ယနေ့/တစ်ပါတ်အတွင်း လုပ်နိုင်ရန်).
-4) အလွန်ကဗျာရေးသံ၊ သဒ္ဒါရှည်ရှည်များကို ရှောင်ပါ — လက်တွေ့ကျ၊ အသုံးဝင်စေရန် ဦးတည်ပါ။
-- စကားအစတွင် ${displayName} အမည်ကို တစ်ကြိမ်သာ သဘောတော်တော်နဲ့ သုံးပြီး ဆက်လက်ရှင်းပြပါ။`
+Concrete Guidance:
+- When asked to choose between people or options, decide clearly and justify it with the cards' suits, numerology, and character energies (e.g., feminine vs masculine archetypes) rather than vague statements.
+- If multiple people are referenced, describe how the card imagery suggests their appearance, demeanor, or role so the user can tell who matches.
+- For timing/date questions, convert the cards' numerology or seasonal/astrological symbols into a timeframe such as "within a week", "over the next month", or "between September and October".
+- Cite concrete environments, symbols, or characters from the drawn cards whenever explaining guidance.`
+  const localizationPrompt = language === 'my'
+    ? `Localization:
+- Provide the entire reading in Burmese (Myanmar) using a natural yet professional male tone suitable for Burmese clients.
+- Ensure the language sounds confident and grounded while remaining respectful.
+- Keep the tarot card names in English even though the explanation is Burmese.`
+    : `Localization:
+- Provide the entire reading in natural English using the same confident, grounded tone.`
+  const prompt = `${basePrompt}
+
+${localizationPrompt}`
 
   let answer: string | null = null
   let provider = (process.env.AI_PROVIDER || '').toLowerCase()
