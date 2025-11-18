@@ -2,7 +2,20 @@
 //nothing
 import { useEffect, useMemo, useRef, useState } from 'react'
 import Image from 'next/image'
+import { Line } from 'react-chartjs-2'
+import {
+  Chart as ChartJS,
+  CategoryScale,
+  LinearScale,
+  PointElement,
+  LineElement,
+  Tooltip,
+  Legend,
+  Filler,
+} from 'chart.js'
 import { TAROT_DECK, shuffleDeck, cardImagePath, CARD_BACK_SRC } from '@/lib/tarot'
+
+ChartJS.register(CategoryScale, LinearScale, PointElement, LineElement, Tooltip, Legend, Filler)
 
 type User = {
   id: string
@@ -73,6 +86,8 @@ type NatalRecord = {
 
 type GoodDeedCategory = 'FAMILY'|'COMMUNITY'|'RELIGION'|'SELF_GROWTH'|'HEALTH'|'FINANCIAL'|'EDUCATION'|'ENVIRONMENT'|'KINDNESS'|'PROFESSIONAL'
 
+type VisualMetric = 'users'|'tarot'|'guidance'|'natal-self'|'natal-other'|'natal-couple'|'zodiac'|'good-deeds'|'engagement'
+
 type GoodDeed = {
   id: string
   userId: string
@@ -89,9 +104,22 @@ type GoodDeed = {
 
 const BELIEF_OPTIONS: GoodDeed['belief'][] = ['BUDDHIST','HINDU','CHRISTIAN','ISLAM','ATHEIST']
 const GOOD_DEED_CATEGORIES: GoodDeedCategory[] = ['FAMILY','COMMUNITY','RELIGION','SELF_GROWTH','HEALTH','FINANCIAL','EDUCATION','ENVIRONMENT','KINDNESS','PROFESSIONAL']
+const VISUAL_METRIC_OPTIONS: { value: VisualMetric; label: string }[] = [
+  { value: 'users', label: 'User registrations' },
+  { value: 'tarot', label: 'Tarot readings' },
+  { value: 'guidance', label: 'Spiritual guidance' },
+  { value: 'natal-self', label: 'Natal (self)' },
+  { value: 'natal-other', label: 'Natal (other)' },
+  { value: 'natal-couple', label: 'Natal (couple)' },
+  { value: 'zodiac', label: 'Zodiac views' },
+  { value: 'good-deeds', label: 'Good deeds logged' },
+  { value: 'engagement', label: 'All engagements' },
+]
+
+const MONTH_NAMES = ['Jan','Feb','Mar','Apr','May','Jun','Jul','Aug','Sep','Oct','Nov','Dec']
 
 export default function AdminDashboard({ users, readings, guidances, natalRecords, goodDeeds }: { users: User[]; readings: Reading[]; guidances: Guidance[]; natalRecords: NatalRecord[]; goodDeeds: GoodDeed[] }) {
-  const [tab, setTab] = useState<'users'|'readings'|'guidance'|'gooddeeds'|'natal'|'zodiac'>('users')
+  const [tab, setTab] = useState<'users'|'readings'|'guidance'|'gooddeeds'|'natal'|'zodiac'|'visual'>('users')
   const [openUserId, setOpenUserId] = useState<string | null>(null)
   const [usersState, setUsersState] = useState<User[]>(users)
   const [readingsState, setReadingsState] = useState<Reading[]>(readings)
@@ -102,9 +130,126 @@ export default function AdminDashboard({ users, readings, guidances, natalRecord
   const [openGuidance, setOpenGuidance] = useState<Guidance | null>(null)
   const [openNatalRecord, setOpenNatalRecord] = useState<NatalRecord | null>(null)
   const [openGoodDeed, setOpenGoodDeed] = useState<GoodDeed | null>(null)
+  const now = useMemo(() => new Date(), [])
+  const currentYear = now.getFullYear()
+  const currentMonth = now.getMonth() + 1
+  const [visualMetric, setVisualMetric] = useState<VisualMetric>('users')
+  const [viewMode, setViewMode] = useState<'year'|'month'|'day'|'hour'>('year')
+  const [yearRangeStart, setYearRangeStart] = useState(currentYear - 4)
+  const [yearRangeEnd, setYearRangeEnd] = useState(currentYear)
+  const [monthYear, setMonthYear] = useState(currentYear)
+  const [dayYear, setDayYear] = useState(currentYear)
+  const [dayMonth, setDayMonth] = useState(currentMonth)
+  const [specificDate, setSpecificDate] = useState(now.toISOString().slice(0, 10))
+  const [analyticsBuckets, setAnalyticsBuckets] = useState<Array<{ label: string; count: number }>>([])
+  const [analyticsLoading, setAnalyticsLoading] = useState(false)
+  const [analyticsError, setAnalyticsError] = useState<string | null>(null)
   const [userDetailTab, setUserDetailTab] = useState<'readings'|'guidance'>('readings')
   useEffect(()=>{ setUserDetailTab('readings') }, [openUserId])
+
+  const analyticsRange = useMemo(() => {
+    const clampMonth = (m: number) => Math.min(12, Math.max(1, m))
+    if (viewMode === 'year') {
+      const startYear = Math.min(yearRangeStart, yearRangeEnd)
+      const endYear = Math.max(yearRangeStart, yearRangeEnd)
+      return {
+        group: 'year' as const,
+        from: new Date(Date.UTC(startYear, 0, 1)),
+        to: new Date(Date.UTC(endYear + 1, 0, 1)),
+        description: `${startYear} – ${endYear}`,
+      }
+    }
+    if (viewMode === 'month') {
+      return {
+        group: 'month' as const,
+        from: new Date(Date.UTC(monthYear, 0, 1)),
+        to: new Date(Date.UTC(monthYear + 1, 0, 1)),
+        description: `Months of ${monthYear}`,
+      }
+    }
+    if (viewMode === 'day') {
+      const monthIdx = clampMonth(dayMonth) - 1
+      return {
+        group: 'day' as const,
+        from: new Date(Date.UTC(dayYear, monthIdx, 1)),
+        to: new Date(Date.UTC(dayYear, monthIdx + 1, 1)),
+        description: `${MONTH_NAMES[monthIdx]} ${dayYear}`,
+      }
+    }
+    const base = specificDate ? new Date(`${specificDate}T00:00:00Z`) : new Date()
+    const fromDate = new Date(Date.UTC(base.getUTCFullYear(), base.getUTCMonth(), base.getUTCDate()))
+    const toDate = new Date(fromDate)
+    toDate.setUTCDate(toDate.getUTCDate() + 1)
+    return {
+      group: 'hour' as const,
+      from: fromDate,
+      to: toDate,
+      description: fromDate.toLocaleDateString('en', { year: 'numeric', month: 'short', day: 'numeric' }),
+    }
+  }, [viewMode, yearRangeStart, yearRangeEnd, monthYear, dayYear, dayMonth, specificDate])
   
+
+  useEffect(() => {
+    let ignore = false
+    async function loadAnalytics() {
+      if (!analyticsRange) return
+      setAnalyticsLoading(true)
+      setAnalyticsError(null)
+      try {
+        const params = new URLSearchParams({
+          metric: visualMetric,
+          group: analyticsRange.group,
+          from: analyticsRange.from.toISOString(),
+          to: analyticsRange.to.toISOString(),
+        })
+        const res = await fetch(`/api/admin/analytics?${params.toString()}`, { cache: 'no-store' })
+        const data = await res.json().catch(() => ({}))
+        if (!res.ok) throw new Error(data?.error || 'Failed to load analytics')
+        if (!ignore) setAnalyticsBuckets(data.buckets || [])
+      } catch (err: any) {
+        if (!ignore) setAnalyticsError(err?.message || 'Failed to load analytics')
+      } finally {
+        if (!ignore) setAnalyticsLoading(false)
+      }
+    }
+    loadAnalytics()
+    return () => { ignore = true }
+  }, [visualMetric, analyticsRange])
+
+  const metricLabel = useMemo(() => VISUAL_METRIC_OPTIONS.find(opt => opt.value === visualMetric)?.label || 'Metric', [visualMetric])
+  const analyticsTotal = useMemo(() => analyticsBuckets.reduce((sum, bucket) => sum + bucket.count, 0), [analyticsBuckets])
+  const analyticsChartData = useMemo(() => ({
+    labels: analyticsBuckets.map(bucket => bucket.label),
+    datasets: [
+      {
+        label: metricLabel,
+        data: analyticsBuckets.map(bucket => bucket.count),
+        borderColor: '#d4af37',
+        backgroundColor: 'rgba(212,175,55,0.2)',
+        fill: true,
+        tension: 0.35,
+        pointBackgroundColor: '#f6e27f',
+        pointRadius: 4,
+      }
+    ]
+  }), [analyticsBuckets, metricLabel])
+  const analyticsChartOptions = useMemo(() => ({
+    responsive: true,
+    maintainAspectRatio: false,
+    interaction: { mode: 'index' as const, intersect: false },
+    plugins: {
+      legend: { display: false },
+      tooltip: { callbacks: { label: (context: any) => `${context.parsed.y ?? context.parsed} events` } }
+    },
+    scales: {
+      y: {
+        beginAtZero: true,
+        ticks: { precision: 0, color: '#d4d4d8' },
+        grid: { color: 'rgba(255,255,255,0.08)' }
+      },
+      x: { ticks: { color: '#a1a1aa' }, grid: { display: false } }
+    }
+  }), [])
 
   // Build lastActive map from readings
   const lastActive = useMemo(() => {
@@ -258,6 +403,7 @@ export default function AdminDashboard({ users, readings, guidances, natalRecord
           <button onClick={() => setTab('gooddeeds')} className={`w-full text-left px-3 py-2 rounded-md border ${tab==='gooddeeds'?'border-mok-gold bg-black/40':'border-transparent hover:border-mok-goldDeep/30'}`}>Good Deeds</button>
           <button onClick={() => setTab('natal')} className={`w-full text-left px-3 py-2 rounded-md border ${tab==='natal'?'border-mok-gold bg-black/40':'border-transparent hover:border-mok-goldDeep/30'}`}>Natal Chart</button>
           <button onClick={() => setTab('zodiac')} className={`w-full text-left px-3 py-2 rounded-md border ${tab==='zodiac'?'border-mok-gold bg-black/40':'border-transparent hover:border-mok-goldDeep/30'}`}>Zodiac</button>
+          <button onClick={() => setTab('visual')} className={`w-full text-left px-3 py-2 rounded-md border ${tab==='visual'?'border-mok-gold bg-black/40':'border-transparent hover:border-mok-goldDeep/30'}`}>Visual</button>
         </nav>
       </aside>
 
@@ -742,6 +888,126 @@ export default function AdminDashboard({ users, readings, guidances, natalRecord
         {tab === 'zodiac' && (
           <section>
             <ZodiacAdmin />
+          </section>
+        )}
+
+        {tab === 'visual' && (
+          <section className="space-y-4">
+            <div className="rounded-3xl border border-mok-goldDeep/40 bg-black/30 p-4 space-y-4">
+              <div className="grid gap-3 md:grid-cols-2 lg:grid-cols-3">
+                <label className="text-sm">
+                  <div className="mb-1 text-neutral-400">Metric</div>
+                  <select value={visualMetric} onChange={e=>setVisualMetric(e.target.value as VisualMetric)} className="w-full rounded-md border border-mok-goldDeep/40 bg-black/40 px-3 py-2">
+                    {VISUAL_METRIC_OPTIONS.map(opt => (
+                      <option key={opt.value} value={opt.value}>{opt.label}</option>
+                    ))}
+                  </select>
+                </label>
+                <label className="text-sm">
+                  <div className="mb-1 text-neutral-400">View by</div>
+                  <select value={viewMode} onChange={e=>setViewMode(e.target.value as any)} className="w-full rounded-md border border-mok-goldDeep/40 bg-black/40 px-3 py-2">
+                    <option value="year">Years</option>
+                    <option value="month">Months</option>
+                    <option value="day">Days</option>
+                    <option value="hour">Hours</option>
+                  </select>
+                </label>
+                {viewMode === 'year' && (
+                  <div className="grid grid-cols-2 gap-3 text-sm">
+                    <label>
+                      <div className="mb-1 text-neutral-400">Start year</div>
+                      <input type="number" value={yearRangeStart} onChange={e=>setYearRangeStart(Number(e.target.value) || currentYear)} className="w-full rounded-md border border-mok-goldDeep/40 bg-black/40 px-3 py-2" />
+                    </label>
+                    <label>
+                      <div className="mb-1 text-neutral-400">End year</div>
+                      <input type="number" value={yearRangeEnd} onChange={e=>setYearRangeEnd(Number(e.target.value) || currentYear)} className="w-full rounded-md border border-mok-goldDeep/40 bg-black/40 px-3 py-2" />
+                    </label>
+                  </div>
+                )}
+                {viewMode === 'month' && (
+                  <label className="text-sm">
+                    <div className="mb-1 text-neutral-400">Year</div>
+                    <input type="number" value={monthYear} onChange={e=>setMonthYear(Number(e.target.value) || currentYear)} className="w-full rounded-md border border-mok-goldDeep/40 bg-black/40 px-3 py-2" />
+                  </label>
+                )}
+                {viewMode === 'day' && (
+                  <div className="grid grid-cols-2 gap-3 text-sm">
+                    <label>
+                      <div className="mb-1 text-neutral-400">Year</div>
+                      <input type="number" value={dayYear} onChange={e=>setDayYear(Number(e.target.value) || currentYear)} className="w-full rounded-md border border-mok-goldDeep/40 bg-black/40 px-3 py-2" />
+                    </label>
+                    <label>
+                      <div className="mb-1 text-neutral-400">Month</div>
+                      <select value={dayMonth} onChange={e=>setDayMonth(Number(e.target.value))} className="w-full rounded-md border border-mok-goldDeep/40 bg-black/40 px-3 py-2">
+                        {MONTH_NAMES.map((name, idx) => (
+                          <option key={name} value={idx + 1}>{name}</option>
+                        ))}
+                      </select>
+                    </label>
+                  </div>
+                )}
+                {viewMode === 'hour' && (
+                  <label className="text-sm">
+                    <div className="mb-1 text-neutral-400">Date</div>
+                    <input type="date" value={specificDate} onChange={e=>setSpecificDate(e.target.value)} className="w-full rounded-md border border-mok-goldDeep/40 bg-black/40 px-3 py-2" />
+                  </label>
+                )}
+              </div>
+
+              <div className="rounded-2xl border border-white/10 bg-black/20 p-4 space-y-3">
+                <div className="flex flex-wrap items-center justify-between gap-2">
+                  <div>
+                    <p className="text-xs uppercase tracking-[0.3em] text-neutral-500">Range</p>
+                    <p className="text-sm text-neutral-200">{analyticsRange.description}</p>
+                  </div>
+                  <div className="text-right">
+                    <p className="text-xs uppercase tracking-[0.3em] text-neutral-500">Total</p>
+                    <p className="text-xl font-semibold text-mok-gold">{analyticsTotal.toLocaleString()}</p>
+                  </div>
+                </div>
+                <div className="relative h-80">
+                  {analyticsLoading ? (
+                    <div className="flex h-full items-center justify-center">
+                      <div className="spinner size-8 border-2 border-mok-gold/50 border-t-transparent rounded-full" aria-label="loading" />
+                    </div>
+                  ) : analyticsBuckets.length ? (
+                    <Line data={analyticsChartData} options={analyticsChartOptions} />
+                  ) : (
+                    <div className="flex h-full items-center justify-center text-sm text-neutral-400">
+                      {analyticsError || 'No data for this range.'}
+                    </div>
+                  )}
+                </div>
+              </div>
+
+              {analyticsError && !analyticsLoading && (
+                <p className="text-sm text-red-400">{analyticsError}</p>
+              )}
+
+              <div className="overflow-x-auto rounded-xl border border-white/10">
+                <table className="w-full text-sm">
+                  <thead className="bg-black/40 text-xs uppercase tracking-[0.2em] text-neutral-400">
+                    <tr>
+                      <th className="p-2 text-left">Bucket</th>
+                      <th className="p-2 text-right">Count</th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {analyticsBuckets.map((bucket, idx) => (
+                      <tr key={`${bucket.label}-${idx}`} className="border-t border-white/5">
+                        <td className="p-2">{bucket.label}</td>
+                        <td className="p-2 text-right font-semibold text-mok-gold">{bucket.count.toLocaleString()}</td>
+                      </tr>
+                    ))}
+                    {analyticsBuckets.length === 0 && !analyticsLoading && (
+                      <tr>
+                        <td colSpan={2} className="p-3 text-center text-sm text-neutral-500">No data points</td>
+                      </tr>
+                    )}
+                  </tbody>
+                </table>
+              </div>
+            </div>
           </section>
         )}
 
