@@ -35,7 +35,14 @@ const COPY: Record<Lang, {
     readingTitle: 'ဖတ်ရှုချက်',
     readingWait: 'ကျေးဇူးပြု၍ ခဏစောင့်ပါ — တွက်ချက်ပေးနေပါတယ်။',
     limitTitle: 'နေ့စဉ် ကန့်သတ်မေးခွန်း ပြည့်ပါပြီ',
-    limitBody: 'ယနေ့အတွက် မေးခွန်း ၃ ကြိမ် ကို အသုံးပြုပြီးဖြစ်ပါသည်။ ထပ်မံဖတ်ရှုလိုပါက Telegram မှ ဝန်ဆောင်မှုကို ဝယ်ယူနိုင်ပါသည်။',
+    limitBody: `ယနေ့အတွက် အခမဲ့ မေးခွန်း ၃ ကြိမ်ကို အသုံးပြုပြီး ဖြစ်ပါပြီ။
+
+နောက်ထပ် အခမဲ့ မေးခွန်း ၃ ကြိမ်အတွက် မနက်ဖြန်မှ ပြန်လည်လာခဲ့ပါ။
+
+ယခု ထပ်မံဖတ်ရှုလိုပါက ရွေးချယ်စရာ နှစ်ခု ရှိပါသည်-
+
+* "ကောင်းမှု မှတ်တမ်း" ကို အသုံးပြုပါ: သင်ပြုခဲ့သော ကောင်းမှုတစ်ခုချင်းစီကို မှတ်တမ်းတင်ပါ၊ အကျိုးသက်ရောက်မှပေါ် မူတည်ပြီး coin များကို ချက်ချင်းရယူနိုင်ပါသည်။ အကြွေစေ့ ၁၀၀ နှင့် မေးခွန်း ၁ ခုကို လဲလှယ်နိုင်ပါသည်။
+* မေးခွန်း ဝယ်ယူပါ: အောက်ပါ "မေးခွန်း ဝယ်ယူရန်" ခလုတ်ကို နှိပ်၍ ကျွန်ုပ်တို့၏ Telegram ချန်နယ်မှတစ်ဆင့် မေးခွန်းများ ထပ်မံဝယ်ယူနိုင်ပါသည်။`,
     limitCta: 'မေးခွန်း ဝယ်ယူရန်',
     limitClose: 'ပိတ်မယ်',
     pickCards: 'သုံးကတ်ရွေးပါ',
@@ -53,8 +60,15 @@ const COPY: Record<Lang, {
     readingTitle: 'Reading',
     readingWait: 'Please wait — generating your guidance.',
     limitTitle: 'Daily question limit reached',
-    limitBody: 'You already used the 3 free questions for today. Purchase more readings on Telegram to continue.',
-    limitCta: 'Buy more questions',
+    limitBody: `You have used your 3 free tarot readings for today.
+
+Please come back tomorrow for your next 3 free readings.
+
+For more readings now, you have two options:
+
+* Use the "Good Deed Journal": Describe a good deed you've done to collect coins, and exchange 100 coins for 1 additional reading.
+* Purchase a Reading: You can purchase more questions via our Telegram channel by pressing the "Buy Question" button below.`,
+    limitCta: 'Buy Question',
     limitClose: 'Close',
     pickCards: 'Pick three cards',
     transientError: 'Unable to respond right now — please try again soon.',
@@ -83,6 +97,24 @@ export default function DashboardClient({ initialLang }: { initialLang: Lang }) 
   const [coins, setCoins] = useState<number | null>(null)
   const [converting, setConverting] = useState(false)
   const copy = COPY[lang]
+
+  const limitDescription = useMemo(() => {
+    const raw = (limitMsg || copy.limitBody || '').replace(/\r\n/g, '\n')
+    const sections = raw.split(/\n\s*\n/).map(section => section.trim()).filter(Boolean)
+    return sections.map((section, idx) => {
+      if (section.startsWith('*')) {
+        const bulletItems = section.split('\n').map(line => line.replace(/^\*\s*/, '').trim()).filter(Boolean)
+        if (!bulletItems.length) return null
+        return (
+          <ul key={`limit-bullets-${idx}`} className="list-disc pl-5 space-y-1">
+            {bulletItems.map((item, itemIdx) => (<li key={itemIdx}>{item}</li>))}
+          </ul>
+        )
+      }
+      return <p key={`limit-paragraph-${idx}`}>{section}</p>
+    }).filter(Boolean)
+  }, [limitMsg, copy.limitBody])
+
 
   useEffect(() => { setLang(initialLang) }, [initialLang])
 
@@ -495,7 +527,9 @@ const chosenCards = useMemo(() => {
           <div className="relative z-10 w-full max-w-md mx-4 rounded-2xl border border-mok-goldDeep/40 bg-mok-black p-6 shadow-xl text-center">
             <Image src="/thanks.png" alt="Thanks" width={200} height={200} className="mx-auto mb-3" />
             <div className="gold-gradient font-semibold text-lg mb-1">{copy.limitTitle}</div>
-            <p className="text-sm text-neutral-300 mb-4">{limitMsg || copy.limitBody}</p>
+            <div className="text-sm text-neutral-300 mb-4 space-y-3 text-left">
+              {limitDescription}
+            </div>
             <div className="flex items-center justify-center gap-3">
               <a href="https://t.me/Mok_tarot" target="_blank" rel="noopener noreferrer" className="px-4 py-2 rounded-md bg-gold-linear text-black font-medium">{copy.limitCta}</a>
               <button onClick={closeModalAndReset} className="px-3 py-2 rounded-md border border-mok-goldDeep/40 hover:border-mok-gold">{copy.limitClose}</button>

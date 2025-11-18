@@ -450,55 +450,6 @@ export default function AdminDashboard({ users, readings, guidances, natalRecord
                 </tbody>
               </table>
             </div>
-            {openGoodDeed && (
-              <div className="fixed inset-0 z-50 flex items-center justify-center p-4">
-                <div className="absolute inset-0 bg-black/70" onClick={() => setOpenGoodDeed(null)} />
-                <div className="relative z-10 w-full max-w-3xl rounded-2xl border border-mok-goldDeep/40 bg-mok-black p-5 shadow-xl max-h-[90vh] overflow-y-auto thin-scroll">
-                  <div className="flex items-center justify-between mb-4">
-                    <div>
-                      <h3 className="text-lg font-semibold text-mok-gold">Good deed detail</h3>
-                      <p className="text-xs text-neutral-400">
-                        {new Date(openGoodDeed.deedDate).toLocaleString()} · Points:{' '}
-                        <span className="text-mok-gold font-semibold">{openGoodDeed.points}</span>
-                      </p>
-                    </div>
-                    <button
-                      onClick={() => setOpenGoodDeed(null)}
-                      className="px-3 py-1 rounded-md border border-mok-goldDeep/40 hover:border-mok-gold"
-                    >
-                      Close
-                    </button>
-                  </div>
-                  <div className="space-y-3 text-sm text-neutral-200">
-                    <div>
-                      <div className="text-neutral-400 text-xs uppercase">User</div>
-                      <div>{openGoodDeed.user?.name || '—'}</div>
-                      {openGoodDeed.user?.email && <div className="text-neutral-400 text-xs">{openGoodDeed.user.email}</div>}
-                    </div>
-                    <div>
-                      <div className="text-neutral-400 text-xs uppercase">Categories</div>
-                      <div className="flex flex-wrap gap-2 text-xs">
-                        {openGoodDeed.categories.map(cat => (
-                          <span key={cat} className="rounded-full border border-mok-goldDeep/40 px-3 py-0.5">{cat}</span>
-                        ))}
-                      </div>
-                    </div>
-                    <div>
-                      <div className="text-neutral-400 text-xs uppercase">Belief / Language</div>
-                      <div>{openGoodDeed.belief} · {openGoodDeed.language.toUpperCase()}</div>
-                    </div>
-                    <div>
-                      <div className="text-neutral-400 text-xs uppercase">Good deed</div>
-                      <p className="whitespace-pre-line text-neutral-100">{openGoodDeed.note}</p>
-                    </div>
-                    <div>
-                      <div className="text-neutral-400 text-xs uppercase">AI feedback</div>
-                      <p className="whitespace-pre-line text-neutral-100">{openGoodDeed.aiFeedback}</p>
-                    </div>
-                  </div>
-                </div>
-              </div>
-            )}
           </section>
         )}
 
@@ -620,6 +571,55 @@ export default function AdminDashboard({ users, readings, guidances, natalRecord
                 </tbody>
               </table>
             </div>
+            {openGoodDeed && (
+              <div className="fixed inset-0 z-50 flex items-center justify-center p-4">
+                <div className="absolute inset-0 bg-black/70" onClick={() => setOpenGoodDeed(null)} />
+                <div className="relative z-10 w-full max-w-3xl rounded-2xl border border-mok-goldDeep/40 bg-mok-black p-5 shadow-xl max-h-[90vh] overflow-y-auto thin-scroll">
+                  <div className="flex items-center justify-between mb-4">
+                    <div>
+                      <h3 className="text-lg font-semibold text-mok-gold">Good deed detail</h3>
+                      <p className="text-xs text-neutral-400">
+                        {new Date(openGoodDeed.deedDate).toLocaleString()} · Points:{' '}
+                        <span className="text-mok-gold font-semibold">{openGoodDeed.points}</span>
+                      </p>
+                    </div>
+                    <button
+                      onClick={() => setOpenGoodDeed(null)}
+                      className="px-3 py-1 rounded-md border border-mok-goldDeep/40 hover:border-mok-gold"
+                    >
+                      Close
+                    </button>
+                  </div>
+                  <div className="space-y-3 text-sm text-neutral-200">
+                    <div>
+                      <div className="text-neutral-400 text-xs uppercase">User</div>
+                      <div>{openGoodDeed.user?.name || '—'}</div>
+                      {openGoodDeed.user?.email && <div className="text-neutral-400 text-xs">{openGoodDeed.user.email}</div>}
+                    </div>
+                    <div>
+                      <div className="text-neutral-400 text-xs uppercase">Categories</div>
+                      <div className="flex flex-wrap gap-2 text-xs">
+                        {openGoodDeed.categories.map(cat => (
+                          <span key={cat} className="rounded-full border border-mok-goldDeep/40 px-3 py-0.5">{cat}</span>
+                        ))}
+                      </div>
+                    </div>
+                    <div>
+                      <div className="text-neutral-400 text-xs uppercase">Belief / Language</div>
+                      <div>{openGoodDeed.belief} · {openGoodDeed.language.toUpperCase()}</div>
+                    </div>
+                    <div>
+                      <div className="text-neutral-400 text-xs uppercase">Good deed</div>
+                      <p className="whitespace-pre-line text-neutral-100">{openGoodDeed.note}</p>
+                    </div>
+                    <div>
+                      <div className="text-neutral-400 text-xs uppercase">AI feedback</div>
+                      <p className="whitespace-pre-line text-neutral-100">{openGoodDeed.aiFeedback}</p>
+                    </div>
+                  </div>
+                </div>
+              </div>
+            )}
           </section>
         )}
 
@@ -813,7 +813,7 @@ export default function AdminDashboard({ users, readings, guidances, natalRecord
 
         {/* Natal record modal */}
         {openNatalRecord && (
-          <div className="fixed inset-0 z-50 flex items-center justify-center p-4">
+          <div className="fixed inset-0 z-50 flex items-start justify-center p-4 overflow-y-auto">
             <div className="absolute inset-0 bg-black/70" onClick={()=>setOpenNatalRecord(null)} />
             <div className="relative z-10 w-full max-w-4xl mx-4 rounded-2xl border border-mok-goldDeep/40 bg-mok-black p-5 shadow-xl max-h-[92vh] overflow-y-auto thin-scroll">
               <div className="flex items-center justify-between mb-3">

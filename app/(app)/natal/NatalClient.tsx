@@ -2025,8 +2025,8 @@ export default function NatalClient({ initialLang }: { initialLang: Lang }) {
       )}
 
       {showRecordModal && (
-        <div className="fixed inset-0 z-50 bg-black/70 backdrop-blur-sm p-4">
-          <div className="mx-auto flex h-full max-w-6xl flex-col rounded-3xl border border-mok-goldDeep/40 bg-[#050302] p-4 shadow-2xl">
+        <div className="fixed inset-0 z-50 bg-black/70 backdrop-blur-sm p-4 overflow-y-auto">
+          <div className="mx-auto flex min-h-full max-w-6xl flex-col rounded-3xl border border-mok-goldDeep/40 bg-[#050302] p-4 shadow-2xl">
             <div className="flex flex-col gap-2 border-b border-white/5 pb-4 sm:flex-row sm:items-center sm:justify-between">
               <div>
                 <p className="text-[11px] uppercase tracking-[0.3em] text-neutral-500">Archive</p>
