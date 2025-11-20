@@ -6,7 +6,8 @@ import { utc_to_jd, calc, houses_ex2, constants, set_ephe_path } from 'sweph'
 let epheInitialized = false
 
 const SIGN_NAMES_EN = ['Aries','Taurus','Gemini','Cancer','Leo','Virgo','Libra','Scorpio','Sagittarius','Capricorn','Aquarius','Pisces'] as const
-const SIGN_NAMES_MY = ['မက္ကရ','ပြိဿ','မေထုန်','ကရကဋ္','သိဟ်','ကန်','တူလာ','ဗြိစ္ဆာ','ဓနု','မကာရ','ကုံ','မိန်'] as const
+// Burmese zodiac names aligned with the UI zodiac pages
+const SIGN_NAMES_MY = ['မိဿ','ပြိဿ','မေထုန်','ကရကဋ်','သိဟ်','ကန်','တူ','ဗြိစ္ဆာ','ဓနု','မကာရ','ကုံ','မိန်'] as const
 
 const PLANETS = [
   { id: constants.SE_SUN, key: 'sun', labelEn: 'Sun', labelMy: 'တနင်္ဂနွေ (Ta-Nin-Ga-Nway)', glyph: '☉' },
@@ -226,12 +227,24 @@ export async function POST(request: Request) {
     houses,
     ascendant: ascendant && {
       degree: normalizeDegrees(points[0]),
-      sign: ascendant,
+      sign: {
+        index: ascendant.index,
+        en: ascendant.sign,
+        my: ascendant.signMy,
+        degreeWithin: ascendant.degreeWithin,
+        formatted: formatDegree(ascendant.degreeWithin)
+      },
       formatted: formatDegree(points[0])
     },
     midheaven: midheaven && {
       degree: normalizeDegrees(points[1]),
-      sign: midheaven,
+      sign: {
+        index: midheaven.index,
+        en: midheaven.sign,
+        my: midheaven.signMy,
+        degreeWithin: midheaven.degreeWithin,
+        formatted: formatDegree(midheaven.degreeWithin)
+      },
       formatted: formatDegree(points[1])
     },
     chartPoints: {

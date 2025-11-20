@@ -603,6 +603,32 @@ export default function NatalClient({ initialLang }: { initialLang: Lang }) {
     : copy.reading.planetsTitle
   const [limitModal, setLimitModal] = useState(false)
   const [limitMsg, setLimitMsg] = useState('')
+  const limitDescription = useMemo(() => {
+    const raw = (limitMsg || copy.limit.body || '').replace(/\r\n/g, '\n')
+    const sections = raw
+      .split(/\n\s*\n/)
+      .map(section => section.trim())
+      .filter(Boolean)
+    return sections
+      .map((section, idx) => {
+        if (section.startsWith('*')) {
+          const bulletItems = section
+            .split('\n')
+            .map(line => line.replace(/^\*\s*/, '').trim())
+            .filter(Boolean)
+          if (!bulletItems.length) return null
+          return (
+            <ul key={`limit-bullets-${idx}`} className="list-disc space-y-1 pl-5">
+              {bulletItems.map((item, itemIdx) => (
+                <li key={itemIdx}>{item}</li>
+              ))}
+            </ul>
+          )
+        }
+        return <p key={`limit-paragraph-${idx}`}>{section}</p>
+      })
+      .filter(Boolean)
+  }, [limitMsg, copy.limit.body])
 
   useEffect(() => {
     if (limitModal && !limitMsg) {
@@ -2010,13 +2036,13 @@ export default function NatalClient({ initialLang }: { initialLang: Lang }) {
           <div className="absolute inset-0 bg-black/70" onClick={closeLimitModal} />
           <div className="relative z-10 mx-4 w-full max-w-md rounded-2xl border border-mok-goldDeep/40 bg-mok-black p-6 text-center shadow-xl">
             <Image src="/thanks.png" alt="Thanks" width={200} height={200} className="mx-auto mb-3" />
-            <div className="gold-gradient mb-1 text-lg font-semibold">{copy.limit.title}</div>
-            <p className="mb-4 text-sm text-neutral-300">{limitMsg || copy.limit.body}</p>
+            <div className="gold-gradient font-semibold text-lg mb-1">{copy.limit.title}</div>
+            <div className="text-sm text-neutral-300 mb-4 space-y-3 text-left">
+              {limitDescription}
+            </div>
             <div className="flex items-center justify-center gap-3">
-              <a href="https://t.me/Mok_tarot" target="_blank" rel="noopener noreferrer" className="rounded-md bg-gold-linear px-4 py-2 text-sm font-semibold text-black">
-                {copy.limit.cta}
-              </a>
-              <button onClick={closeLimitModal} className="rounded-md border border-mok-goldDeep/40 px-3 py-2 text-sm text-neutral-200 hover:border-mok-gold">
+              <a href="https://t.me/Mok_tarot" target="_blank" rel="noopener noreferrer" className="px-4 py-2 rounded-md bg-gold-linear text-black font-medium">{copy.limit.cta}</a>
+              <button onClick={closeLimitModal} className="px-3 py-2 rounded-md border border-mok-goldDeep/40 hover:border-mok-gold">
                 {copy.limit.close}
               </button>
             </div>
