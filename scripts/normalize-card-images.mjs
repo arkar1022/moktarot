@@ -2,6 +2,7 @@ import fs from 'fs/promises'
 import path from 'path'
 import sharp from 'sharp'
 
+// hwll
 const ROOT = process.cwd()
 const CARDS_DIR = path.join(ROOT, 'public', 'cards')
 
