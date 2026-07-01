@@ -5,6 +5,7 @@ import { FormEvent, useCallback, useEffect, useMemo, useState } from 'react'
 import dynamic from 'next/dynamic'
 import NatalChartWheel, { PlanetGlyph, HouseLine } from './NatalChartWheel'
 import { NATAL_LOCATIONS } from '@/lib/natal/locations'
+import { isWithoutDbMode } from '@/lib/runtime'
 
 type Lang = 'en' | 'my'
 type Mode = 'self' | 'other' | 'couple'
@@ -546,6 +547,7 @@ function cascadeLocation<T extends PersonFormState>(form: T, field: 'country' | 
 }
 
 export default function NatalClient({ initialLang }: { initialLang: Lang }) {
+  const withoutDbMode = isWithoutDbMode()
   const [lang, setLang] = useState<Lang>(initialLang)
   const copy = useMemo(() => COPY[lang], [lang])
   const [mode, setMode] = useState<Mode>('self')
@@ -1305,18 +1307,20 @@ export default function NatalClient({ initialLang }: { initialLang: Lang }) {
             <p className="mt-3 text-xs text-neutral-400">{activeTab.description}</p>
           </div>
           <div className="flex flex-col items-stretch gap-3 sm:items-end">
-            <button
-              type="button"
-              onClick={openRecordsModal}
-              className="inline-flex items-center gap-2 self-end rounded-full border border-mok-gold/40 px-4 py-1.5 text-xs font-semibold text-mok-gold hover:border-mok-gold"
-            >
-              <svg viewBox="0 0 24 24" className="h-4 w-4" fill="none" stroke="currentColor" strokeWidth={1.6} strokeLinecap="round" strokeLinejoin="round">
-                <path d="M5 5h14v14H5z" />
-                <path d="M9 9h6" />
-                <path d="M9 13h6" />
-              </svg>
-              Records
-            </button>
+            {!withoutDbMode && (
+              <button
+                type="button"
+                onClick={openRecordsModal}
+                className="inline-flex items-center gap-2 self-end rounded-full border border-mok-gold/40 px-4 py-1.5 text-xs font-semibold text-mok-gold hover:border-mok-gold"
+              >
+                <svg viewBox="0 0 24 24" className="h-4 w-4" fill="none" stroke="currentColor" strokeWidth={1.6} strokeLinecap="round" strokeLinejoin="round">
+                  <path d="M5 5h14v14H5z" />
+                  <path d="M9 9h6" />
+                  <path d="M9 13h6" />
+                </svg>
+                Records
+              </button>
+            )}
             <div className="flex flex-col gap-2 sm:flex-row sm:flex-wrap">
               {MODE_TABS.map(tab => {
                 const selected = mode === tab.id

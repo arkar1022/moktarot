@@ -1,8 +1,19 @@
 import { NextResponse } from 'next/server'
 import { prisma } from '@/lib/prisma'
 import { getAuth } from '@/lib/auth'
+import { isWithoutDbMode } from '@/lib/runtime'
 
 export async function GET(req: Request) {
+  if (isWithoutDbMode()) {
+    return NextResponse.json({
+      dailyLimit: 0,
+      usedToday: 0,
+      remainingToday: 9999,
+      extraQuota: 0,
+      unlimited: true,
+    })
+  }
+
   const auth = getAuth(req)
   if (!auth) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
 

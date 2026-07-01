@@ -2,8 +2,9 @@ import { NextResponse } from 'next/server'
 import { prisma } from '@/lib/prisma'
 import { getAuth } from '@/lib/auth'
 import { logInfo, reqMeta } from '@/lib/log'
+import { isWithoutDbMode } from '@/lib/runtime'
 
-async function askOpenAI(prompt: string, lang: 'my'|'en') {
+async function askOpenAI(prompt: string, lang: 'my'|'en'): Promise<string | null> {
   const key = process.env.OPENAI_API_KEY
   const envModel = (process.env.OPENAI_MODEL || '').trim()
   // Allow common typo like "gpt5" by falling back to supported models
@@ -14,10 +15,7 @@ async function askOpenAI(prompt: string, lang: 'my'|'en') {
     'gpt-4o-mini',
   ].filter(Boolean) as string[]
 
-  if (!key) {
-    // Dev fallback: return a mocked answer
-    return 'စမ်းသပ်နေမှုအတွက် အဖြေ Mock ပြန်သွားပါသည် — OPENAI_API_KEY ထည့်သွင်းပြီး ပြန်ကြိုးစားပါ။'
-  }
+  if (!key) return null
 
   const makeBody = (model: string) => ({
     model,
@@ -64,7 +62,7 @@ async function askOpenAI(prompt: string, lang: 'my'|'en') {
     }
   }
 
-  return 'မော်ဒယ်မရရှိနိုင်သော်လည်း — OPENAI_MODEL ကို gpt-4o (သို့) gpt-4 အဖြစ် ပြောင်းပြီး နောက်တစ်ကြိမ် ပြန်ကြိုးစားပါ။'
+  return null
 }
 
 async function askGemini(prompt: string, lang: 'my'|'en') {
@@ -152,28 +150,30 @@ function normalizeCategory(label: string | null | undefined): 'LOVE'|'MARRIAGE'|
 
 export async function POST(req: Request) {
   const meta = reqMeta(req)
-  const auth = getAuth(req)
-  if (!auth) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
+  const withoutDbMode = isWithoutDbMode()
+  const auth = withoutDbMode ? null : getAuth(req)
+  if (!withoutDbMode && !auth) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
 
-  const { question, selectedCards, language = 'my' } = await req.json()
+  const { question, selectedCards, language = 'my', displayName: rawDisplayName } = await req.json()
   const q = (question ?? '').toString().trim()
-  logInfo('TAROT_READING_REQUEST', { ...meta, userId: auth.uid, qlen: q.length })
+  const userId = auth?.uid || 'guest-local'
+  logInfo('TAROT_READING_REQUEST', { ...meta, userId, qlen: q.length, withoutDbMode })
   if (!q || q.length > 150 || !Array.isArray(selectedCards) || selectedCards.length !== 3) {
     return NextResponse.json({ error: 'Invalid input' }, { status: 400 })
   }
 
   // Per-user daily limit + spillover from extraQuota
   let willConsumeExtra = false
-  if (auth.role !== 'ADMIN') {
-    const dbUser = await prisma.user.findUnique({ where: { id: auth.uid }, select: { dailyLimit: true, extraQuota: true } }).catch(()=>null as any)
+  if (!withoutDbMode && auth?.role !== 'ADMIN') {
+    const dbUser = await prisma.user.findUnique({ where: { id: userId }, select: { dailyLimit: true, extraQuota: true } }).catch(()=>null as any)
     const limit = dbUser?.dailyLimit ?? Number(process.env.DAILY_READING_LIMIT || 3)
     const now = new Date()
     const startUTC = new Date(Date.UTC(now.getUTCFullYear(), now.getUTCMonth(), now.getUTCDate(), 0, 0, 0))
     const [tarotCount, natalCount] = await Promise.all([
-      prisma.reading.count({ where: { userId: auth.uid, createdAt: { gte: startUTC } } }),
+      prisma.reading.count({ where: { userId, createdAt: { gte: startUTC } } }),
       prisma.natalReadingRecord.count({
         where: {
-          userId: auth.uid,
+          userId,
           createdAt: { gte: startUTC },
           OR: [{ phase: null }, { phase: 'planets' }],
           status: 'success'
@@ -192,7 +192,9 @@ export async function POST(req: Request) {
   }
 
   const cardsText = selectedCards.map((c: any) => (typeof c === 'string' ? c : c.name)).join(', ')
-  const displayName = (auth.name?.trim() || auth.email?.split('@')[0] || '').trim() || 'မိတ်ဆွေ'
+  const displayName = withoutDbMode
+    ? (typeof rawDisplayName === 'string' ? rawDisplayName.trim() : '') || (language === 'en' ? 'Friend' : 'မိတ်ဆွေ')
+    : (auth?.name?.trim() || auth?.email?.split('@')[0] || '').trim() || 'မိတ်ဆွေ'
   const basePrompt = `User name: ${displayName}
 Question: "${q}"
 Selected cards: ${cardsText}
@@ -230,16 +232,15 @@ ${localizationPrompt}`
     answer = await askGemini(prompt, language)
     if (!answer) answer = await askOpenAI(prompt, language)
   } else {
-    // default to OpenAI; if missing, try Gemini
+    // default to OpenAI; if unavailable or unsupported, fall back to Gemini
     answer = await askOpenAI(prompt, language)
-    if (!answer || /Mock ပြန်သွားပါ/.test(answer)) {
-      const g = await askGemini(prompt, language)
-      if (g) answer = g
-    }
+    if (!answer) answer = await askGemini(prompt, language)
   }
 
   if (!answer) {
-    answer = 'သုံးစွဲသည့် AI ဝန်ဆောင်မှုမရနိုင်ပါ — OPENAI_API_KEY (သို့) GEMINI_API_KEY စစ်ဆေးပါ။'
+    answer = language === 'en'
+      ? 'The AI service is unavailable right now. Please try again shortly.'
+      : 'AI ဝန်ဆောင်မှုကို ယခု မရနိုင်သေးပါ — ခဏနေရင် ပြန်ကြိုးစားပေးပါ။'
   }
 
   // Determine category using available provider(s)
@@ -251,35 +252,47 @@ ${localizationPrompt}`
     category = normalizeCategory(await askOpenAICategory(q)) || normalizeCategory(await askGeminiCategory(q))
   }
 
-  let reading
-  try {
-    reading = await prisma.reading.create({
-      data: {
-        userId: auth.uid,
-        question: q,
-        cards: selectedCards,
-        answer,
-        language,
-        category: category || undefined,
-      }
-    })
-  } catch (e: any) {
-    // Fallback for environments where migration hasn't been applied yet
-    reading = await prisma.reading.create({
-      data: {
-        userId: auth.uid,
-        question: q,
-        cards: selectedCards,
-        answer,
-        language,
-      }
-    })
+  let reading: any
+  if (withoutDbMode) {
+    reading = {
+      id: `guest-${Date.now()}`,
+      question: q,
+      cards: selectedCards,
+      answer,
+      language,
+      category: category || null,
+      createdAt: new Date().toISOString(),
+    }
+  } else {
+    try {
+      reading = await prisma.reading.create({
+        data: {
+          userId,
+          question: q,
+          cards: selectedCards,
+          answer,
+          language,
+          category: category || undefined,
+        }
+      })
+    } catch (e: any) {
+      // Fallback for environments where migration hasn't been applied yet
+      reading = await prisma.reading.create({
+        data: {
+          userId,
+          question: q,
+          cards: selectedCards,
+          answer,
+          language,
+        }
+      })
+    }
   }
 
   // If we needed to consume an extra quota unit, decrement now
-  if (willConsumeExtra && auth.role !== 'ADMIN') {
+  if (!withoutDbMode && willConsumeExtra && auth?.role !== 'ADMIN') {
     try {
-      await prisma.user.update({ where: { id: auth.uid }, data: { extraQuota: { decrement: 1 } } })
+      await prisma.user.update({ where: { id: userId }, data: { extraQuota: { decrement: 1 } } })
     } catch {}
   }
 

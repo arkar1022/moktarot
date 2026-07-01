@@ -5,6 +5,7 @@ import MobileMenu from './MobileMenu'
 import { cookies } from 'next/headers'
 import { verifyToken } from '@/lib/auth'
 import NavLink from './NavLink'
+import { isWithoutDbMode } from '@/lib/runtime'
 
 const NAV_ITEMS = [
   { href: '/app/dashboard', key: 'dashboard' },
@@ -40,15 +41,19 @@ const UserAvatar = dynamic(() => import('./UserAvatar'), { ssr: false })
 const AuthGuard = dynamic(() => import('./AuthGuard'), { ssr: false })
 
 export default function AppLayout({ children }: { children: React.ReactNode }) {
+  const withoutDbMode = isWithoutDbMode()
   const cookieStore = cookies()
   const lang = cookieStore.get('mok_lang')?.value === 'en' ? 'en' : 'my'
   const token = cookieStore.get('mok_auth')?.value
   const payload = token ? verifyToken(token) : null
-  const isAdmin = payload?.role === 'ADMIN'
+  const isAdmin = !withoutDbMode && payload?.role === 'ADMIN'
+  const navItems = withoutDbMode
+    ? NAV_ITEMS.filter(item => item.href !== '/app/zodiac' && item.href !== '/app/goodness')
+    : NAV_ITEMS
   const copy = NAV_COPY[lang]
   return (
     <div className="min-h-screen">
-      <AuthGuard />
+      {!withoutDbMode && <AuthGuard />}
       <header className="sticky top-0 z-10 border-b border-mok-goldDeep/30 bg-mok-black/80 backdrop-blur">
         <nav className="max-w-5xl mx-auto flex items-center justify-between p-4">
           <div className="flex items-center gap-3">
@@ -56,7 +61,7 @@ export default function AppLayout({ children }: { children: React.ReactNode }) {
             <span className="gold-gradient font-semibold">MOK Tarot</span>
           </div>
           <div className="hidden sm:flex items-center gap-2 text-sm">
-            {NAV_ITEMS.map(item => (
+            {navItems.map(item => (
               <NavLink key={item.href} href={item.href}>{copy[item.key]}</NavLink>
             ))}
             {isAdmin && <NavLink href="/adminmok">Admin</NavLink>}

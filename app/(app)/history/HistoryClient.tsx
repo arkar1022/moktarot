@@ -1,6 +1,8 @@
 'use client'
 
 import { useEffect, useState } from 'react'
+import { readLocalGuidanceHistory, readLocalTarotHistory } from '@/lib/browser-storage'
+import { isWithoutDbMode } from '@/lib/runtime'
 
 type Reading = {
   id: string
@@ -46,6 +48,7 @@ const COPY = {
 } as const
 
 export default function HistoryClient({ initialLang }: { initialLang: Lang }) {
+  const withoutDbMode = isWithoutDbMode()
   const [language, setLanguage] = useState<Lang>(initialLang)
   const [tab, setTab] = useState<'tarot'|'guidance'>('tarot')
   const [readings, setReadings] = useState<Reading[]>([])
@@ -68,6 +71,12 @@ export default function HistoryClient({ initialLang }: { initialLang: Lang }) {
 
   useEffect(() => {
     (async () => {
+      if (withoutDbMode) {
+        setReadings(readLocalTarotHistory())
+        setGuidances(readLocalGuidanceHistory())
+        setLoading(false)
+        return
+      }
       try {
         const [rRes, gRes] = await Promise.all([
           fetch('/api/history'),
@@ -81,7 +90,7 @@ export default function HistoryClient({ initialLang }: { initialLang: Lang }) {
         setLoading(false)
       }
     })()
-  }, [])
+  }, [withoutDbMode])
 
   if (loading) return <p className="text-sm text-neutral-400">{copy.loading}</p>
 

@@ -1,10 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server'
+import { isWithoutDbMode } from '@/lib/runtime'
 
 const COOKIE = 'mok_auth'
-const maintenanceFlag = process.env.MAINTENANCE_MODE
-const maintenanceEnabled = maintenanceFlag
-  ? ['1', 'true', 'yes', 'on'].includes(maintenanceFlag.toLowerCase())
-  : false
 
 type TokenPayload = {
   uid?: string
@@ -38,25 +35,7 @@ function redirectToLogin(req: NextRequest) {
 
 export function middleware(req: NextRequest) {
   const { pathname } = req.nextUrl
-
-  // Short-circuit when maintenance mode is on (configured via .env)
-  const isMaintenancePath = pathname.startsWith('/maintenance')
-  const isStaticAsset =
-    pathname.startsWith('/_next') ||
-    pathname.startsWith('/favicon.ico') ||
-    pathname.startsWith('/icon') ||
-    pathname.startsWith('/logo') ||
-    /\.(png|jpg|jpeg|gif|webp|svg|ico|txt|xml|css|js|map|woff2?)$/i.test(pathname)
-
-  if (maintenanceEnabled && !isMaintenancePath && !isStaticAsset) {
-    if (pathname.startsWith('/api')) {
-      return NextResponse.json(
-        { message: 'MOK Tarot is undergoing maintenance and will return on January 12.' },
-        { status: 503 }
-      )
-    }
-    return NextResponse.rewrite(new URL('/maintenance', req.url))
-  }
+  const withoutDbMode = isWithoutDbMode()
 
   const token = req.cookies.get(COOKIE)?.value
   const payload = token ? decodePayload(token) : null
@@ -64,6 +43,9 @@ export function middleware(req: NextRequest) {
 
   // If user hits login page while already authenticated, send them to dashboard
   if (pathname === '/') {
+    if (withoutDbMode) {
+      return NextResponse.redirect(new URL('/app/dashboard', req.url))
+    }
     if (token && !valid) {
       const res = NextResponse.next()
       res.cookies.set(COOKIE, '', { path: '/', maxAge: 0 })
@@ -77,6 +59,17 @@ export function middleware(req: NextRequest) {
 
   // Protect app pages
   if (pathname.startsWith('/app') || pathname.startsWith('/adminmok')) {
+    if (withoutDbMode) {
+      if (
+        pathname.startsWith('/adminmok') ||
+        pathname.startsWith('/app/zodiac') ||
+        pathname.startsWith('/app/goodness')
+      ) {
+        return NextResponse.redirect(new URL('/app/dashboard', req.url))
+      }
+      return NextResponse.next()
+    }
+
     if (!valid) return redirectToLogin(req)
 
     // Lightweight role check for admin (non-cryptographic; real check inside page)
@@ -89,6 +82,5 @@ export function middleware(req: NextRequest) {
 }
 
 export const config = {
-  // Run on all paths so maintenance mode can short-circuit requests centrally
   matcher: ['/:path*']
 }

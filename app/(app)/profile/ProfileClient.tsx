@@ -2,6 +2,8 @@
 
 import Image from 'next/image'
 import { useEffect, useState } from 'react'
+import { readGuestProfile, saveGuestProfile } from '@/lib/browser-storage'
+import { isWithoutDbMode } from '@/lib/runtime'
 
 const presetAvatars = Array.from({ length: 8 }, (_, i) => `/avatars/vector${i + 1}.png`)
 
@@ -55,6 +57,7 @@ const COPY = {
 } as const
 
 export default function ProfileClient({ initialLang }: { initialLang: Lang }) {
+  const withoutDbMode = isWithoutDbMode()
   const [language, setLanguage] = useState<Lang>(initialLang)
   const copy = COPY[language]
   const [name, setName] = useState('')
@@ -83,6 +86,13 @@ export default function ProfileClient({ initialLang }: { initialLang: Lang }) {
 
   useEffect(() => {
     (async () => {
+      if (withoutDbMode) {
+        const profile = readGuestProfile()
+        setName(profile.name)
+        setAvatar(profile.avatar)
+        setLoading(false)
+        return
+      }
       const res = await fetch('/api/me')
       if (!res.ok) { setLoading(false); return }
       const data = await res.json()
@@ -90,10 +100,16 @@ export default function ProfileClient({ initialLang }: { initialLang: Lang }) {
       setAvatar(data.user?.avatar || '/avatars/vector8.png')
       setLoading(false)
     })()
-  }, [])
+  }, [withoutDbMode])
 
   async function saveName() {
     setErr(null); setMsg(null)
+    if (withoutDbMode) {
+      saveGuestProfile({ name })
+      setMsg(copy.messages.nameSaved)
+      setEditName(false)
+      return
+    }
     const res = await fetch('/api/profile/update', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ name }) })
     const data = await res.json().catch(()=>({}))
     if (res.ok) { setMsg(copy.messages.nameSaved); setEditName(false) }
@@ -102,6 +118,11 @@ export default function ProfileClient({ initialLang }: { initialLang: Lang }) {
 
   async function saveAvatar() {
     setErr(null); setMsg(null)
+    if (withoutDbMode) {
+      saveGuestProfile({ avatar: avatar || '/avatars/vector8.png' })
+      setMsg(copy.messages.avatarSaved)
+      return
+    }
     const res = await fetch('/api/profile/update', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ avatar }) })
     const data = await res.json().catch(()=>({}))
     if (res.ok) {
@@ -165,7 +186,8 @@ export default function ProfileClient({ initialLang }: { initialLang: Lang }) {
         </div>
       </section>
 
-      <section className="p-4 rounded-xl border border-mok-goldDeep/30 bg-black/40">
+      {!withoutDbMode && (
+        <section className="p-4 rounded-xl border border-mok-goldDeep/30 bg-black/40">
         <div className="flex items-center justify-between">
           <div className="text-sm text-mok-goldLight">{copy.password}</div>
           {!showPwd && (
@@ -183,15 +205,18 @@ export default function ProfileClient({ initialLang }: { initialLang: Lang }) {
             </div>
           </div>
         )}
-      </section>
+        </section>
+      )}
 
   {(msg || err) && (
         <p className={`text-sm ${msg? 'text-green-400':'text-red-400'}`}>{msg || err}</p>
       )}
 
-      <div className="pt-2">
-        <button type="button" onClick={logout} className="px-4 py-2 rounded-md border border-mok-goldDeep/40">{copy.logout}</button>
-      </div>
+      {!withoutDbMode && (
+        <div className="pt-2">
+          <button type="button" onClick={logout} className="px-4 py-2 rounded-md border border-mok-goldDeep/40">{copy.logout}</button>
+        </div>
+      )}
     </div>
   )
 }

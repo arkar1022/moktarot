@@ -2,10 +2,26 @@
 
 import { useEffect, useState } from 'react'
 import Image from 'next/image'
+import { readGuestProfile } from '@/lib/browser-storage'
+import { isWithoutDbMode } from '@/lib/runtime'
 
 export default function UserAvatar() {
+  const withoutDbMode = isWithoutDbMode()
   const [src, setSrc] = useState('/avatars/vector8.png')
   useEffect(() => {
+    if (withoutDbMode) {
+      const syncGuestProfile = () => {
+        setSrc(readGuestProfile().avatar)
+      }
+      syncGuestProfile()
+      window.addEventListener('guest-profile-updated', syncGuestProfile)
+      window.addEventListener('avatar-updated', syncGuestProfile)
+      return () => {
+        window.removeEventListener('guest-profile-updated', syncGuestProfile)
+        window.removeEventListener('avatar-updated', syncGuestProfile)
+      }
+    }
+
     let alive = true
     ;(async () => {
       try {
@@ -29,7 +45,7 @@ export default function UserAvatar() {
     }
     window.addEventListener('avatar-updated', onUpdated as any)
     return () => { alive = false; window.removeEventListener('avatar-updated', onUpdated as any) }
-  }, [])
+  }, [withoutDbMode])
 
   return (
     <Image src={src} alt="avatar" width={28} height={28} className="rounded-full border border-mok-goldDeep/40" />

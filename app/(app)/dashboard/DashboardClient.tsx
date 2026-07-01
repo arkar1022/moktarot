@@ -3,6 +3,8 @@
 import { useEffect, useMemo, useRef, useState } from 'react'
 import Image from 'next/image'
 import { TAROT_DECK, shuffleDeck, CARD_BACK_SRC, cardImagePath } from '@/lib/tarot'
+import { appendLocalTarotHistory, readGuestProfile } from '@/lib/browser-storage'
+import { isWithoutDbMode } from '@/lib/runtime'
 
 type Lang = 'my' | 'en'
 
@@ -77,6 +79,7 @@ For more readings now, you have two options:
 }
 
 export default function DashboardClient({ initialLang }: { initialLang: Lang }) {
+  const withoutDbMode = isWithoutDbMode()
   const [lang, setLang] = useState<Lang>(initialLang)
   const [question, setQuestion] = useState('')
   const [shuffleCount, setShuffleCount] = useState(1)
@@ -96,6 +99,7 @@ export default function DashboardClient({ initialLang }: { initialLang: Lang }) 
   const [limits, setLimits] = useState<{ remainingToday: number, extraQuota: number, dailyLimit: number, usedToday: number } | null>(null)
   const [coins, setCoins] = useState<number | null>(null)
   const [converting, setConverting] = useState(false)
+  const [guestName, setGuestName] = useState('')
   const copy = COPY[lang]
 
   const limitDescription = useMemo(() => {
@@ -154,6 +158,7 @@ export default function DashboardClient({ initialLang }: { initialLang: Lang }) 
   }
 
   async function fetchLimits() {
+    if (withoutDbMode) return
     try {
       const res = await fetch('/api/user/limits', { cache: 'no-store' })
       if (!res.ok) return
@@ -168,6 +173,7 @@ export default function DashboardClient({ initialLang }: { initialLang: Lang }) 
   }
 
   async function fetchCoins() {
+    if (withoutDbMode) return
     try {
       const res = await fetch('/api/deeds', { cache: 'no-store' })
       if (!res.ok) return
@@ -177,7 +183,7 @@ export default function DashboardClient({ initialLang }: { initialLang: Lang }) 
   }
 
   async function convertCoins() {
-    if (converting) return
+    if (withoutDbMode || converting) return
     setConverting(true)
     try {
       const res = await fetch('/api/deeds/convert', { method: 'POST' })
@@ -319,11 +325,11 @@ const chosenCards = useMemo(() => {
       const cards = forceTrio
         ? forcedNames
         : selected.map(i => backCards[i].name)
-    const res = await fetch('/api/tarot/reading', {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ question, selectedCards: cards, language: lang })
-    })
+      const res = await fetch('/api/tarot/reading', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ question, selectedCards: cards, language: lang, displayName: guestName })
+      })
       const data = await res.json().catch(()=>({}))
       if (res.status === 429) {
         const msg = copy.limitBody
@@ -337,8 +343,17 @@ const chosenCards = useMemo(() => {
         if (requestIdRef.current === reqId) setResult(copy.transientError)
       } else {
         if (requestIdRef.current === reqId) setResult(data.reading?.answer || '')
+        if (withoutDbMode && data?.reading) {
+          appendLocalTarotHistory({
+            id: data.reading.id || `guest-${Date.now()}`,
+            question: data.reading.question || question,
+            answer: data.reading.answer || '',
+            cards: Array.isArray(data.reading.cards) ? data.reading.cards : cards,
+            createdAt: data.reading.createdAt || new Date().toISOString(),
+          })
+        }
         // Refresh limits after a successful reading
-        fetchLimits()
+        if (!withoutDbMode) fetchLimits()
       }
     } catch (e) {
       console.error(e)
@@ -348,7 +363,19 @@ const chosenCards = useMemo(() => {
     }
   }
 
-  useEffect(() => { setDeck(shuffleDeck(3)); fetchLimits(); fetchCoins() }, [])
+  useEffect(() => {
+    setDeck(shuffleDeck(3))
+    if (withoutDbMode) {
+      const syncGuestProfile = () => {
+        setGuestName(readGuestProfile().name)
+      }
+      syncGuestProfile()
+      window.addEventListener('guest-profile-updated', syncGuestProfile)
+      return () => window.removeEventListener('guest-profile-updated', syncGuestProfile)
+    }
+    fetchLimits()
+    fetchCoins()
+  }, [withoutDbMode])
 
   const availableQuestions = useMemo(() => {
     if (!limits) return null
@@ -366,7 +393,8 @@ const chosenCards = useMemo(() => {
 
   return (
     <div className="space-y-6">
-      <section className="grid gap-4 sm:grid-cols-2">
+      {withoutDbMode ? null : (
+        <section className="grid gap-4 sm:grid-cols-2">
         <div className="rounded-2xl border border-mok-goldDeep/40 bg-gradient-to-br from-black/70 via-[#120a04] to-black/60 p-4 shadow-[0_10px_45px_rgba(0,0,0,0.45)]">
           <div className="flex items-center gap-4">
             <div className="flex h-12 w-12 items-center justify-center rounded-2xl bg-black/50 border border-mok-gold/40 text-mok-gold">
@@ -430,7 +458,8 @@ const chosenCards = useMemo(() => {
             <p className="text-[11px] text-neutral-500">Need {100 - coins} more coins for the next reading.</p>
           )}
         </div>
-      </section>
+        </section>
+      )}
       <section className="grid gap-3 items-stretch sm:grid-cols-[1fr_320px]">
         <div>
           <label className="block mb-1 text-sm text-mok-goldLight">{copy.questionLabel}</label>

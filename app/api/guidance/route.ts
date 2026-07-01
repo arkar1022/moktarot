@@ -2,6 +2,7 @@ import { NextResponse } from 'next/server'
 import { prisma } from '@/lib/prisma'
 import { getAuth } from '@/lib/auth'
 import { logInfo, reqMeta } from '@/lib/log'
+import { isWithoutDbMode } from '@/lib/runtime'
 
 type Religion = 'BUDDHIST' | 'HINDU' | 'CHRISTIAN' | 'ISLAM'
 type Lang = 'my' | 'en'
@@ -44,14 +45,16 @@ async function askOpenAI(prompt: string, language: Lang): Promise<string | null>
 
 export async function POST(req: Request) {
   const meta = reqMeta(req)
-  const auth = getAuth(req)
-  if (!auth) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
+  const withoutDbMode = isWithoutDbMode()
+  const auth = withoutDbMode ? null : getAuth(req)
+  if (!withoutDbMode && !auth) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
 
   const body = await req.json().catch(()=>({})) as any
   const religion = String(body?.religion || '').toUpperCase() as Religion
   const question = (body?.question || '').toString().trim()
   const language: Lang = body?.language === 'en' ? 'en' : 'my'
-  logInfo('GUIDANCE_REQUEST', { ...meta, userId: auth.uid, religion, qlen: question.length, language })
+  const userId = auth?.uid || 'guest-local'
+  logInfo('GUIDANCE_REQUEST', { ...meta, userId, religion, qlen: question.length, language, withoutDbMode })
   if (!['BUDDHIST','HINDU','CHRISTIAN','ISLAM'].includes(religion)) {
     return NextResponse.json({ error: 'Invalid religion' }, { status: 400 })
   }
@@ -60,7 +63,9 @@ export async function POST(req: Request) {
   }
 
   const displayName =
-    (auth.name?.trim() || auth.email?.split('@')[0] || '').trim() ||
+    (withoutDbMode
+      ? (typeof body?.displayName === 'string' ? body.displayName.trim() : '')
+      : (auth?.name?.trim() || auth?.email?.split('@')[0] || '').trim()) ||
     (language === 'en' ? 'Friend' : 'မိတ်ဆွေ')
 
   const religionName: Record<Lang, Record<Religion, string>> = {
@@ -146,14 +151,22 @@ ${constraintLine}`
     return NextResponse.json({ error: 'AI unavailable' }, { status: 500 })
   }
 
-  const saved = await prisma.guidance.create({
-    data: {
-      userId: auth.uid,
-      religion: religion as any,
-      question,
-      answer,
-    }
-  })
+  const saved = withoutDbMode
+    ? {
+        id: `guest-${Date.now()}`,
+        religion,
+        question,
+        answer,
+        createdAt: new Date().toISOString(),
+      }
+    : await prisma.guidance.create({
+        data: {
+          userId,
+          religion: religion as any,
+          question,
+          answer,
+        }
+      })
 
   return NextResponse.json({ guidance: saved })
 }

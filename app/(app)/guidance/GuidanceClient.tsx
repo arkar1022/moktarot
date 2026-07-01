@@ -2,6 +2,8 @@
 
 import { useEffect, useMemo, useState } from 'react'
 import Image from 'next/image'
+import { appendLocalGuidanceHistory, readGuestProfile } from '@/lib/browser-storage'
+import { isWithoutDbMode } from '@/lib/runtime'
 
 type Religion = 'BUDDHIST' | 'HINDU' | 'CHRISTIAN' | 'ISLAM'
 type Lang = 'my' | 'en'
@@ -51,11 +53,13 @@ const COPY: Record<Lang, {
 }
 
 export default function GuidanceClient({ initialLang }: { initialLang: Lang }) {
+  const withoutDbMode = isWithoutDbMode()
   const [language, setLanguage] = useState<Lang>(initialLang)
   const [selected, setSelected] = useState<Religion | null>(null)
   const [question, setQuestion] = useState('')
   const [loading, setLoading] = useState(false)
   const [result, setResult] = useState<string | null>(null)
+  const [guestName, setGuestName] = useState('')
 
   useEffect(() => {
     if (typeof document === 'undefined') return
@@ -69,6 +73,16 @@ export default function GuidanceClient({ initialLang }: { initialLang: Lang }) {
     sync()
     return () => observer.disconnect()
   }, [])
+
+  useEffect(() => {
+    if (!withoutDbMode) return
+    const syncGuestProfile = () => {
+      setGuestName(readGuestProfile().name)
+    }
+    syncGuestProfile()
+    window.addEventListener('guest-profile-updated', syncGuestProfile)
+    return () => window.removeEventListener('guest-profile-updated', syncGuestProfile)
+  }, [withoutDbMode])
 
   function formatAnswer(text: string) {
     const esc = text.replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;')
@@ -90,10 +104,19 @@ export default function GuidanceClient({ initialLang }: { initialLang: Lang }) {
     if (!selected || !question.trim()) return
     setLoading(true); setResult(null)
     try {
-      const res = await fetch('/api/guidance', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ religion: selected, question, language }) })
+      const res = await fetch('/api/guidance', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ religion: selected, question, language, displayName: guestName }) })
       const data = await res.json().catch(()=>({}))
       if (!res.ok) throw new Error(data?.error || 'Failed')
       setResult(data.guidance?.answer || '')
+      if (withoutDbMode && data?.guidance) {
+        appendLocalGuidanceHistory({
+          id: data.guidance.id || `guest-${Date.now()}`,
+          religion: data.guidance.religion || selected,
+          question: data.guidance.question || question,
+          answer: data.guidance.answer || '',
+          createdAt: data.guidance.createdAt || new Date().toISOString(),
+        })
+      }
     } catch (e) {
       setResult(COPY[language].error)
     } finally {

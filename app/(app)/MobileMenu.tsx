@@ -2,6 +2,8 @@
 
 import { useEffect, useState } from 'react'
 import Image from 'next/image'
+import { readGuestProfile } from '@/lib/browser-storage'
+import { isWithoutDbMode } from '@/lib/runtime'
 
 type Lang = 'my' | 'en'
 
@@ -38,6 +40,7 @@ const TEXT: Record<Lang, {
 }
 
 export default function MobileMenu({ lang }: { lang: Lang }) {
+  const withoutDbMode = isWithoutDbMode()
   const [open, setOpen] = useState(false)
   const [name, setName] = useState<string>('')
   const [avatar, setAvatar] = useState<string>('/avatars/vector8.png')
@@ -45,6 +48,18 @@ export default function MobileMenu({ lang }: { lang: Lang }) {
   const copy = TEXT[lang]
 
   useEffect(() => {
+    if (withoutDbMode) {
+      const syncGuestProfile = () => {
+        const profile = readGuestProfile()
+        setName(profile.name)
+        setAvatar(profile.avatar)
+        setRole('USER')
+      }
+      syncGuestProfile()
+      window.addEventListener('guest-profile-updated', syncGuestProfile)
+      return () => window.removeEventListener('guest-profile-updated', syncGuestProfile)
+    }
+
     let alive = true
     ;(async () => {
       try {
@@ -58,7 +73,7 @@ export default function MobileMenu({ lang }: { lang: Lang }) {
       } catch {}
     })()
     return () => { alive = false }
-  }, [])
+  }, [withoutDbMode])
 
   function close() { setOpen(false) }
 
@@ -90,15 +105,21 @@ export default function MobileMenu({ lang }: { lang: Lang }) {
                 <div className="text-xs text-neutral-400">{copy.profileSubtitle}</div>
               </div>
             </button>
-            <a href="/app/zodiac" className="block p-2 text-sm rounded-md hover:bg-black/40">{copy.zodiac}</a>
             <a href="/app/natal" className="block p-2 text-sm rounded-md hover:bg-black/40">{copy.natal}</a>
             <a href="/app/guidance" className="block p-2 text-sm rounded-md hover:bg-black/40">{copy.guidance}</a>
             <a href="/app/history" className="block p-2 text-sm rounded-md hover:bg-black/40">{copy.history}</a>
-            <a href="/app/goodness" className="block p-2 text-sm rounded-md hover:bg-black/40">{copy.goodness}</a>
+            {!withoutDbMode && (
+              <>
+                <a href="/app/zodiac" className="block p-2 text-sm rounded-md hover:bg-black/40">{copy.zodiac}</a>
+                <a href="/app/goodness" className="block p-2 text-sm rounded-md hover:bg-black/40">{copy.goodness}</a>
+              </>
+            )}
             {role === 'ADMIN' && (
               <a href="/adminmok" className="block p-2 text-sm rounded-md hover:bg-black/40">Admin</a>
             )}
-            <button onClick={signOut} className="mt-1 w-full p-2 text-left text-sm rounded-md hover:bg-black/40">{copy.logout}</button>
+            {!withoutDbMode && (
+              <button onClick={signOut} className="mt-1 w-full p-2 text-left text-sm rounded-md hover:bg-black/40">{copy.logout}</button>
+            )}
           </div>
         </>
       )}

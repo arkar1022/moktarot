@@ -1,9 +1,14 @@
 'use client'
 
 import { useEffect } from 'react'
+import { isWithoutDbMode } from '@/lib/runtime'
 
 export default function AuthGuard() {
+  const withoutDbMode = isWithoutDbMode()
+
   useEffect(() => {
+    if (withoutDbMode) return
+
     let active = true
     ;(async () => {
       try {
@@ -17,7 +22,6 @@ export default function AuthGuard() {
       }
     })()
     return () => { active = false }
-  }, [])
+  }, [withoutDbMode])
   return null
 }
-

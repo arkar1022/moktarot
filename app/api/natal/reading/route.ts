@@ -3,6 +3,7 @@ import { Prisma } from '@prisma/client'
 import { getAuth } from '@/lib/auth'
 import { logError, logInfo, reqMeta } from '@/lib/log'
 import { prisma } from '@/lib/prisma'
+import { isWithoutDbMode } from '@/lib/runtime'
 
 type Lang = 'my' | 'en'
 type Phase = 'planets' | 'houses'
@@ -949,10 +950,12 @@ function shapeResponse(args: {
 
 export async function POST(req: Request) {
   const meta = reqMeta(req)
-  const auth = getAuth(req)
-  if (!auth) {
+  const withoutDbMode = isWithoutDbMode()
+  const auth = withoutDbMode ? null : getAuth(req)
+  if (!withoutDbMode && !auth) {
     return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
   }
+  const userId = auth?.uid || 'guest-local'
 
   let body: any
   try {
@@ -971,8 +974,8 @@ export async function POST(req: Request) {
 
   const shouldCheckLimit = context === 'couple' || phase === 'planets'
   let willConsumeExtra = false
-  if (shouldCheckLimit) {
-    const usage = await getDailyUsage(auth.uid)
+  if (!withoutDbMode && shouldCheckLimit) {
+    const usage = await getDailyUsage(userId)
     if (usage.used >= usage.limit) {
       if (usage.extraQuota > 0) {
         willConsumeExtra = true
@@ -997,15 +1000,17 @@ export async function POST(req: Request) {
       return NextResponse.json({ error: 'Partner data incomplete.' }, { status: 400 })
     }
 
-    logInfo('NATAL_AI_READING', { ...meta, userId: auth.uid, language, context })
+    logInfo('NATAL_AI_READING', { ...meta, userId, language, context, withoutDbMode })
 
-    const recordId = await createNatalRecord({
-      userId: auth.uid,
-      context,
-      phase: null,
-      language,
-      request: { partners }
-    })
+    const recordId = withoutDbMode
+      ? null
+      : await createNatalRecord({
+          userId,
+          context,
+          phase: null,
+          language,
+          request: { partners }
+        })
 
 
     const overloadMessage = language === 'en'
@@ -1013,27 +1018,27 @@ export async function POST(req: Request) {
       : 'ဤအချိန်တွင် လူများစွာမှ တစ်ပြိုင်တည်း အသုံးပြုနေသဖြင့် AI ဖတ်ရှုမှု ဝန်ဆောင်မှုက overload ဖြစ်နေပါသည်။ နည်းနည်းနားပြီး နောက်တစ်ကြိမ် ပြန်လည်ကြိုးစားပေးပါ၊ စောင့်ဆိုင်းမှုအတွက် ကျေးဇူးတင်ပါတယ်။'
 
     const bundle = buildCouplePrompt({ partners, language })
-    const aiResult = await generateAiText(bundle, { ...meta, userId: auth.uid, language, context })
+    const aiResult = await generateAiText(bundle, { ...meta, userId, language, context })
     if (!aiResult) {
-      logError('NATAL_COUPLE_AI_EMPTY', { ...meta, userId: auth.uid, language })
-      await markNatalRecordError(recordId, overloadMessage)
+      logError('NATAL_COUPLE_AI_EMPTY', { ...meta, userId, language })
+      if (recordId) await markNatalRecordError(recordId, overloadMessage)
       return NextResponse.json({ error: overloadMessage }, { status: 502 })
     }
 
     try {
       const payload = shapeCoupleResponse({ aiText: aiResult.text, lang: language })
       const responsePayload = aiResult.model ? { ...payload, model: aiResult.model } : payload
-      await markNatalRecordSuccess(recordId, responsePayload)
-      if (shouldCheckLimit && willConsumeExtra && auth.role !== 'ADMIN') {
+      if (recordId) await markNatalRecordSuccess(recordId, responsePayload)
+      if (!withoutDbMode && shouldCheckLimit && willConsumeExtra && auth?.role !== 'ADMIN') {
         try {
-          await prisma.user.update({ where: { id: auth.uid }, data: { extraQuota: { decrement: 1 } } })
+          await prisma.user.update({ where: { id: userId }, data: { extraQuota: { decrement: 1 } } })
         } catch {}
       }
       return NextResponse.json(responsePayload)
     } catch (err) {
-      logError('NATAL_COUPLE_AI_PARSE', { ...meta, userId: auth.uid, language }, err)
+      logError('NATAL_COUPLE_AI_PARSE', { ...meta, userId, language }, err)
       const message = err instanceof Error ? err.message : 'AI response invalid.'
-      await markNatalRecordError(recordId, message)
+      if (recordId) await markNatalRecordError(recordId, message)
       return NextResponse.json({ error: message }, { status: 502 })
     }
   }
@@ -1056,7 +1061,7 @@ export async function POST(req: Request) {
     return NextResponse.json({ error: 'House data missing.' }, { status: 400 })
   }
 
-  logInfo('NATAL_AI_READING', { ...meta, userId: auth.uid, phase, language, context })
+  logInfo('NATAL_AI_READING', { ...meta, userId, phase, language, context, withoutDbMode })
 
   const requestPayload = {
     metadata,
@@ -1067,23 +1072,25 @@ export async function POST(req: Request) {
     label,
     gender
   }
-  const recordId = await createNatalRecord({
-    userId: auth.uid,
-    context,
-    phase,
-    language,
-    request: requestPayload
-  })
+  const recordId = withoutDbMode
+    ? null
+    : await createNatalRecord({
+        userId,
+        context,
+        phase,
+        language,
+        request: requestPayload
+      })
 
   const bundle = buildPrompt({ context, phase, metadata, planets, houses, asc, mid, language, label, gender })
-  const aiResult = await generateAiText(bundle, { ...meta, userId: auth.uid, phase, language, context })
+  const aiResult = await generateAiText(bundle, { ...meta, userId, phase, language, context })
 
   if (!aiResult) {
-    logError('NATAL_AI_EMPTY', { ...meta, userId: auth.uid, phase, language, context })
+    logError('NATAL_AI_EMPTY', { ...meta, userId, phase, language, context })
     const message = language === 'en'
       ? 'Our AI astrologer is currently overloaded because many users are requesting readings at the same time. Please give us a moment to catch up and try again later—thank you for your patience!'
       : ' အသုံးပြုနေသဖြင့် AI ဖတ်ရှုမှု ဝန်ဆောင်မှုက overload ဖြစ်နေပါသည်။ နည်းနည်းနားပြီး နောက်တစ်ကြိမ် ပြန်လည်ကြိုးစားပေးပါ၊ စောင့်ဆိုင်းမှုအတွက် ကျေးဇူးတင်ပါတယ်။'
-    await markNatalRecordError(recordId, message)
+    if (recordId) await markNatalRecordError(recordId, message)
     return NextResponse.json({ error: message }, { status: 502 })
   }
 
@@ -1097,17 +1104,17 @@ export async function POST(req: Request) {
       lang: language
     })
     const responsePayload = aiResult.model ? { ...payload, model: aiResult.model } : payload
-    await markNatalRecordSuccess(recordId, responsePayload)
-    if (shouldCheckLimit && willConsumeExtra && auth.role !== 'ADMIN') {
+    if (recordId) await markNatalRecordSuccess(recordId, responsePayload)
+    if (!withoutDbMode && shouldCheckLimit && willConsumeExtra && auth?.role !== 'ADMIN') {
       try {
-        await prisma.user.update({ where: { id: auth.uid }, data: { extraQuota: { decrement: 1 } } })
+        await prisma.user.update({ where: { id: userId }, data: { extraQuota: { decrement: 1 } } })
       } catch {}
     }
     return NextResponse.json(responsePayload)
   } catch (err) {
-    logError('NATAL_AI_PARSE', { ...meta, userId: auth.uid, phase, language, context }, err)
+    logError('NATAL_AI_PARSE', { ...meta, userId, phase, language, context }, err)
     const message = err instanceof Error ? err.message : 'AI response invalid.'
-    await markNatalRecordError(recordId, message)
+    if (recordId) await markNatalRecordError(recordId, message)
     return NextResponse.json({ error: message }, { status: 502 })
   }
 }
